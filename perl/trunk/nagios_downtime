@@ -251,7 +251,7 @@ if(!$p->ping($nagiosWebServer)) {
 
 sub about {
 		print <<'ABOUT';
-Usage: nagios_downtime [-H <hostname>] [-s <service>] [-t <minutes>] [-h] [-d]
+Usage: nagios_downtime [-H <hostname>] [-s <service>] [-t <minutes>] [-S <webserver>] [-p <cgi-bin-path>] [-h] [-d]
 Nagios Downtime Script by Lars Michelsen <lars@vertical-visions.de>
 
 Parameters:
@@ -268,6 +268,7 @@ Parameters:
  -h, --help       Show this message
 
 Report bugs to <lars@vertical-visions.de>
+
 ABOUT
 }
 
