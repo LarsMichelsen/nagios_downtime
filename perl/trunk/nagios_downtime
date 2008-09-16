@@ -24,27 +24,18 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 # ##############################################################################
 # SCRIPT:       nagios_downtime
-# VERSION:      0.4
-# CREATED:      27.03.2006
-# LAST UPDATED: 19.05.2008
 # AUTHOR:       Lars Michelsen
 # DECRIPTION:   Sends a HTTP(S)-GET to the nagios web server to
 #	              enter a downtime for a host or service.
-# CHANGES:
-# 20.12.2006    - Using Getopt::Long for handling the params
-# 01.02.2007    - New Config Option: $nagiosAuthName for setting
-#                 the right Basic Auth "Auth Name"
-# 15.04.2007    - Added SSL support (Crypt::SSLeay is needed)
-# 16.04.2007    - Date format selection via new config value
-#                 named $nagiosDateFormat
-#               - Added some basic response handling of response
-#                 code and content
-# 27.04.2007    - Bugfix with Authentication (thanks jwj)
+# CHANGES IN 0.4:
 # 19.05.2008    - Some code formating
 #               - The downtime type is now automaticaly detected on given params
 #               - Changed case of the parameters
 #               - Added proxy configuration options
 #               - User Agent is now "nagios_downtime.pl / <version>"
+#               - Added parameter -S and -p for setting server options via param
+#
+# $Id$
 # ##############################################################################
 
 # ##############################################################################
@@ -120,6 +111,8 @@ GetOptions(
 	"h|help" => \$help,
 	"d|debug"   => \$debug,
 	"H|hostname=s" => \$hostname,
+	"S|server=s" => \$nagiosServer,
+	"p|path=s" => \$nagiosCgiPath,
 	"t|downtime=i" => \$downtimeDuration,
 	"c|comment=i" => \$downtimeComment,
 	"s|service=s" => \$service);
@@ -141,7 +134,7 @@ if($nagiosWebServer eq "") {
 }
 
 # When a service name is set, this will be a service downtime
-if($service eq "") {
+if($service ne "") {
 	$downtimeType = 2;
 }
 
@@ -258,15 +251,19 @@ if(!$p->ping($nagiosWebServer)) {
 
 sub about {
 		print <<'ABOUT';
-Usage: nagios_downtime [-H] [-s] [-t] [-h] [-d]
+Usage: nagios_downtime [-H <hostname>] [-s <service>] [-t <minutes>] [-h] [-d]
 Nagios Downtime Script by Lars Michelsen <lars@vertical-visions.de>
 
 Parameters:
- -H, --hostname   Hostname, like in Nagios
- -s, --service    Servicename, like in Nagios (When empty, host downtime is
-                  being submited)
- -t, --downtime   Downtime in minutes
+ -H, --hostname   Name of the host the downtime should be scheduled for.
+                  Important: The name must be same as in Nagios.
+ -s, --service    Name of the service the downtime should be scheduled for.
+                  Important: The name must be same as in Nagios. 
+                  When empty or not set a host downtime is being submited.
+ -t, --downtime   Duration of the fixed downtime in minutes
  -c, --comment    Comment for the downtime
+ -S, --server     Nagios Webserver address (IP or DNS)
+ -p, --path       Web path to Nagios cgi-bin (Default: /nagios/cgi-bin)
  -d, --debug      Enable debug mode
  -h, --help       Show this message
 
