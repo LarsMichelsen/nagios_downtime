@@ -45,7 +45,7 @@
 # Protocol for the GET Request, In most cases "http", "https" is also possible
 my $nagiosWebProto = "http";
 # IP or FQDN of Nagios server (example: nagios.domain.de)
-my $nagiosServer = "YOUR.NAGIOSSERVER.DE";
+my $nagiosServer = "localhost";
 # IP or FQDN of Nagios web server. In most cases same as $nagiosServer, if
 # empty automaticaly using $nagiosServer
 my $nagiosWebServer = "";
