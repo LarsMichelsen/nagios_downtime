@@ -16,8 +16,8 @@
 # to the Nagios cmd.cgi to be able to post a downtime.
 ### END INIT INFO
 
-#BAR_BIN=/usr/bin/nagios_downtime
-BAR_BIN=./nagios_downtime
+BAR_BIN=/usr/bin/nagios_downtime
+#BAR_BIN=./nagios_downtime
 
 # Check for missing binaries
 test -x $BAR_BIN || {
@@ -29,19 +29,18 @@ test -x $BAR_BIN || {
 	fi;
 }
 
-# Load the rc.status script for this service.
-. /etc/rc.status
-
-# Reset status of this service
-rc_reset
-
 case "$1" in
     stop)
         echo -n "Running nagios_downtime script... "
-
-        # Remember status and be verbose
-        rc_status -v
-				exit 0
+				$BAR_BIN
+				
+				if [ $? -eq 0 ]; then
+					echo "done."
+					exit 0
+				else
+					echo "ERROR"
+					exit 1
+				fi
         ;;
     *)
         # If no parameters are given, print which are avaiable
