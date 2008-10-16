@@ -4,6 +4,9 @@
 #
 # Author: Lars Michelsen <lars@vertical-visions.de>
 #
+# chkconfig: 0126 99 01
+# description: Schedules a downtime in Nagios
+#
 ### BEGIN INIT INFO
 # Provides:          nagios_downtime
 # Required-Start:    $network
