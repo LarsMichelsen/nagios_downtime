@@ -251,8 +251,12 @@ if(!$p->ping($nagiosWebServer)) {
 
 sub about {
 		print <<'ABOUT';
-Usage: nagios_downtime [-H <hostname>] [-s <service>] [-t <minutes>] [-S <webserver>] [-p <cgi-bin-path>] [-h] [-d]
+Usage:
+  nagios_downtime [-H <hostname>] [-s <service>] [-t <minutes>] [-S <webserver>] [-p <cgi-bin-path>] [-d]
+  nagios_downtime -h
+
 Nagios Downtime Script by Lars Michelsen <lars@vertical-visions.de>
+Sends a HTTP(S) request to the nagios cgis to add a downtime for a host or service.
 
 Parameters:
  -H, --hostname   Name of the host the downtime should be scheduled for.
@@ -267,7 +271,8 @@ Parameters:
  -d, --debug      Enable debug mode
  -h, --help       Show this message
 
-Report bugs to <lars@vertical-visions.de>
+If you call nagios_downtime without parameters the script takes the default options which are
+hardcoded in the script.
 
 ABOUT
 }

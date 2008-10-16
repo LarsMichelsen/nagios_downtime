@@ -2,7 +2,7 @@
 # Copyright (c) 2008 Lars Michelsen
 # All rights reserved.
 #
-# Author: Lars Michelsen <lars@vertical-visions.de>, 2008
+# Author: Lars Michelsen <lars@vertical-visions.de>
 #
 ### BEGIN INIT INFO
 # Provides:          nagios_downtime
