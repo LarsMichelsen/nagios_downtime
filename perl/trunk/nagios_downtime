@@ -1,6 +1,9 @@
 #!/usr/bin/perl -w
 # ##############################################################################
-# Copyright (c) 2007,2008 Lars Michelsen http://www.vertical-visions.de
+# nagios_downtime.pl
+#
+# Copyright (c) 2007-2009 Lars Michelsen <lars@vertical-visions.de>
+# http://www.vertical-visions.de
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation
@@ -24,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 # ##############################################################################
 # SCRIPT:       nagios_downtime
-# AUTHOR:       Lars Michelsen
+# AUTHOR:       Lars Michelsen <lars@vertical-visions.de>
 # DECRIPTION:   Sends a HTTP(S)-GET to the nagios web server to
 #	              enter a downtime for a host or service.
 # CHANGES IN 0.4:
@@ -271,6 +274,8 @@ Parameters:
  -c, --comment    Comment for the downtime
  -S, --server     Nagios Webserver address (IP or DNS)
  -p, --path       Web path to Nagios cgi-bin (Default: /nagios/cgi-bin)
+ -u, --user       Usernate to be used for accessing the CGIs
+ -P, --password   Password for accessing the CGIs
  -d, --debug      Enable debug mode
  -h, --help       Show this message
 
