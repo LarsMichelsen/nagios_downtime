@@ -61,9 +61,9 @@ my $nagiosUser = "nagiosadmin";
 my $nagiosUserPw = "";
 # Name of authentication realm, set in the Nagios .htaccess file 
 # (example: "Nagios Access")
-my $nagiosAuthName = "";
+my $nagiosAuthName = "Nagios Access";
 # Nagios date format (same like set in value "date_format" in nagios.cfg)
-my $nagiosDateFormat = "euro";
+my $nagiosDateFormat = "us";
 # When you have to use a proxy server for access to the nagios server, set the
 # URL here. The proxy will be set for this script for the choosen web protocol
 # When this is set to 'env', the proxy settings will be read from the env.
@@ -113,6 +113,8 @@ GetOptions(
 	"H|hostname=s" => \$hostname,
 	"S|server=s" => \$nagiosServer,
 	"p|path=s" => \$nagiosCgiPath,
+	"u|user=s" => \$nagiosUser,
+	"P|password=s" => \$nagiosUserPw,
 	"t|downtime=i" => \$downtimeDuration,
 	"c|comment=i" => \$downtimeComment,
 	"s|service=s" => \$service);
@@ -229,6 +231,7 @@ if(!$p->ping($nagiosWebServer)) {
 		}
 		case 4 {
 			print "ERROR: HTTP Response code 4xx says \"client error\" (".$oResponse->code.")\n";
+			print "Hint: This could be caused by wrong auth credentials and/or datetime settings in this script\n";
 			exit(1);
 		}
 		case 5 {
