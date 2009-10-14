@@ -97,8 +97,7 @@ my $downtimeType = 1;
 # Default Downtime duration in minutes
 my $downtimeDuration = 10;
 # Default Downtime text
-# The (ID:<id>) string is important for deleting the downtime later
-my $downtimeComment = "Perl Downtime-Script (ID:".$downtimeId.")";
+my $downtimeComment = "Perl Downtime-Script";
 # Default Debugmode: off => 0 or on => 1
 my $debug = 0;
 # Script version
@@ -169,6 +168,14 @@ if($nagiosWebServer eq "") {
 # When a service name is set, this will be a service downtime
 if($service ne "") {
 	$downtimeType = 2;
+}
+
+# Append the script internal downtime id when id storing is enabled
+# The downtime ID is important to identify the just scheduled downtime for
+# later removal. The CGIs do not provide the downtime id right after sending
+# the schedule request. So it is important to tag the downtime with this.
+if($storeDowntimeIds == 1) {
+	$downtimeComment .= " (ID:".$downtimeId.")";
 }
 
 # Calculate the start of the downtime
@@ -309,6 +316,8 @@ switch($mode) {
 				deleteDowntime($nagiosDowntimeId);
 				
 				# Delete internal downtime id from downtime file
+				# This only gets executed on successfull deleteDowntime() cause the
+				# function terminates the script on any problem
 				delDowntimeId($downtimes[0]);
 			} else {
 				print "ERROR: Unable to remove the downtime. Nagios downtime not found. Maybe already deleted? Or not scheduled yet?\n";
@@ -458,7 +467,6 @@ sub deleteDowntime {
 				case /Your command request was successfully submitted to Nagios for processing/ {
 					
 					print "OK: Downtime (ID: ".$nagiosDowntimeId.") has been deleted\n";
-					exit(0);
 				}
 				case /Sorry, but you are not authorized to commit the specified command\./ {
 					print "ERROR: Maybe not authorized or wrong host- or servicename\n";
