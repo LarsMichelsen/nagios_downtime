@@ -115,7 +115,6 @@ use LWP 5.64;
 use Sys::Hostname;
 use Getopt::Long;
 use Switch;
-use DateTime;
 
 my $arg;
 my $p;
