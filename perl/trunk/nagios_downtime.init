@@ -1,17 +1,17 @@
 #!/bin/sh
-# Copyright (c) 2008 Lars Michelsen
+# Copyright (c) 2008-2009 Lars Michelsen <lars@vertical-visions.de>
 # All rights reserved.
 #
 # Author: Lars Michelsen <lars@vertical-visions.de>
 #
-# chkconfig: 0126 99 01
+# chkconfig: 345 99 01
 # description: Schedules a downtime in Nagios
 #
 ### BEGIN INIT INFO
 # Provides:          nagios_downtime
 # Required-Start:    $network
 # Required-Stop:
-# Default-Start:     
+# Default-Start:     3 4 5
 # Default-Stop:      0 1 2 6
 # Short-Description: nagios_downtime schedules a downtime to Nagios
 # Description:       The nagios_downtime script schedules a downtime
@@ -33,21 +33,33 @@ test -x $BAR_BIN || {
 }
 
 case "$1" in
-    stop)
-        echo -n "Running nagios_downtime script... "
-				$BAR_BIN
-				
-				if [ $? -eq 0 ]; then
-					echo "done."
-					exit 0
-				else
-					echo "ERROR"
-					exit 1
-				fi
-        ;;
-    *)
-        # If no parameters are given, print which are avaiable
-        echo "Usage: $0 {stop}"
-        exit 1
-        ;;
+	stop)
+		echo -n "Scheduling Nagios downtime (nagios_downtime)... "
+		$BAR_BIN
+		
+		if [ $? -eq 0 ]; then
+			echo "done."
+			exit 0
+		else
+			echo "ERROR"
+			exit 1
+		fi
+	;;
+	start)
+		echo -n "Removing Nagios downtime (nagios_downtime)... "
+		$BAR_BIN -m del
+		
+		if [ $? -eq 0 ]; then
+			echo "done."
+			exit 0
+		else
+			echo "ERROR"
+			exit 1
+		fi
+	;;
+	*)
+		# If no parameters are given, print which are avaiable
+		echo "Usage: $0 {stop|start}"
+		exit 1
+	;;
 esac
