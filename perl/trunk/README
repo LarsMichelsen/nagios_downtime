@@ -40,7 +40,33 @@ some cases you may need to change the parameter in the init script calls or the
 options in the nagios_downtime file to fit your needs. For example the options
 for accessing the CGI files will be needed to be changed in most environments.
 
-For details about the single params please run "nagios_downtime -h".
+You basicaly have two ways to provide the options to the script:
+a) via command line
+b) via editing the options in the script
+
+For details about the single command line parameters please execute
+
+  nagios_downtime -h
+
+You may change the basic like Nagios host, cgi path, cgi user and password 
+using the options in the nagios_downtime script. This way you don't need to
+provide the parameters on each call.
+
+Examples:
+
+	This command can be used to schedule a downtime of 15 minutes on the nagios
+  host (nagios.my-domain.com). The CGIs are located at /nagios/cgi-bin. The
+	CGIs can be accessed by the user nagiosadmin with password nagiosadmin. A 
+  host-downtime for the host webserver.my-domain.com will be scheduled.
+
+  nagios_downtime -m add -t 15 -S nagios.my-domain.com -p /nagios/cgi-bin \
+                  -u nagiosadmin -P nagiosadmin -H webserver.my-domain.com
+
+  With this command you can terminate the downtime. You need to have the
+  saving of the downtime ids enabled (See next chapter
+
+  nagios_downtime -m del -S nagios.my-domain.com -p /nagios/cgi-bin \
+                  -u nagiosadmin -P nagiosadmin -H webserver.my-domain.com
 
 ###############################################################################
 # Downtime deletion
