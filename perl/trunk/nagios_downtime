@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 # ##############################################################################
-# nagios_downtime.pl
+# nagios_downtime
 #
 # Copyright (c) 2007-2009 Lars Michelsen <lars@vertical-visions.de>
 # http://www.vertical-visions.de
@@ -30,13 +30,19 @@
 # AUTHOR:       Lars Michelsen <lars@vertical-visions.de>
 # DECRIPTION:   Sends a HTTP(S)-GET to the nagios web server to
 #	              enter a downtime for a host or service.
-# CHANGES IN 0.4:
-# 19.05.2008    - Some code formating
-#               - The downtime type is now automaticaly detected on given params
-#               - Changed case of the parameters
-#               - Added proxy configuration options
-#               - User Agent is now "nagios_downtime.pl / <version>"
-#               - Added parameter -S and -p for setting server options via param
+# CHANGES:
+# 2008-05-19 v0.4 - Some code formating
+#                 - The downtime type is now automaticaly detected on given params
+#                 - Changed case of the parameters
+#                 - Added proxy configuration options
+#                 - User Agent is now "nagios_downtime.pl / <version>"
+#                 - Added parameter -S and -p for setting server options via param
+# 2009-10-13 v0.5 - Added new "run modes": add (default) and del to schedule
+#                   or remove downtimes
+#                 - Using the del mode the last scheduled downtime will be removed
+#                 - Added the params -u and -P for giving the username and password
+#                   for accessing the CGIs by the command line
+#                 - Several code cleanups
 #
 # $Id$
 # ##############################################################################
@@ -84,6 +90,7 @@ my $downtimePath = '/tmp';
 # Some default options (Usualy no changes needed below this)
 
 # Script internal downtime id for a new downtime
+# Using the current timestamp as script internal downtime identifier
 my $downtimeId = time;
 # Default downtime type (1: Host Downtime, 2: Service Downtime)
 my $downtimeType = 1;
@@ -95,7 +102,7 @@ my $downtimeComment = "Perl Downtime-Script (ID:".$downtimeId.")";
 # Default Debugmode: off => 0 or on => 1
 my $debug = 0;
 # Script version
-my $version = "0.4";
+my $version = "0.5";
 
 # ##############################################################################
 # Don't change anything below, except you know what you are doing.
@@ -129,7 +136,7 @@ Getopt::Long::Configure('bundling');
 GetOptions(
 	"h|help" => \$help,
 	"d|debug"   => \$debug,
-	"m|mode" => \$mode,
+	"m|mode=s" => \$mode,
 	"H|hostname=s" => \$hostname,
 	"S|server=s" => \$nagiosServer,
 	"p|path=s" => \$nagiosCgiPath,
@@ -177,55 +184,272 @@ if(!$p->ping($nagiosWebServer)) {
 	# Nagios web server is not pingable
 	print "ERROR: Given Nagios web server \"" . $nagiosWebServer . "\" not reachable via ping\n";
 	exit(1);
+}
+
+# Initialize the browser
+$oBrowser = LWP::UserAgent->new(keep_alive => 1,timeout => 10);
+$oBrowser->agent("nagios_downtime.pl / " . $version);
+
+# Set the proxy address depending on the configured option
+if($proxyAddress eq 'env') {
+	$oBrowser->env_proxy = 1;
 } else {
-	# initialize browser
-	$oBrowser = LWP::UserAgent->new(keep_alive => 1,timeout => 10);
-	$oBrowser->agent("nagios_downtime.pl / " . $version);
-	
-	# Set the proxy address depending on the configured option
-	if($proxyAddress eq 'env') {
-		$oBrowser->env_proxy = 1;
-	} else {
-		$oBrowser->proxy([$nagiosWebProto], $proxyAddress);
-	}
-
-	if($downtimeType == 1) {
-		# Schedule Host Downtime
-		$url = $nagiosWebProto . "://" . $nagiosWebServer . ":" . $nagiosWebPort . $nagiosCgiPath . "/cmd.cgi?cmd_typ=55&cmd_mod=2" .
-			"&host=" . $hostname .
-			"&com_author=" . $nagiosUser . "&com_data=" . $downtimeComment .
-			"&trigger=0&start_time=" . $start . "&end_time=" . $end .
-			"&fixed=1&childoptions=1&btnSubmit=Commit";
-
-		if($debug == 1) {
-			print "HTTP-GET: " . $url;
-		}
-	} else {
-		# Schedule Service Downtime
-		$url = $nagiosWebProto . "://" . $nagiosWebServer . ":" . $nagiosWebPort . $nagiosCgiPath . "/cmd.cgi?cmd_typ=56&cmd_mod=2" .
-			"&host=" . $hostname . "&service=" . $service .
-			"&com_author=" . $nagiosUser . "&com_data=" . $downtimeComment .
-			"&trigger=0&start_time=" . $start . "&end_time=" . $end .
-			"&fixed=1&btnSubmit=Commit";
-		
-		if($debug == 1) {
-			print "HTTP-GET: " . $url;
-		}
-	}
+	$oBrowser->proxy([$nagiosWebProto], $proxyAddress);
+}
  
-	# Only try to auth if auth informations given
-	if($nagiosAuthName ne "" && $nagiosUserPw ne "") {
-		# submit auth informations
-		$oBrowser->credentials($nagiosWebServer.':'.$nagiosWebPort, $nagiosAuthName, $nagiosUser => $nagiosUserPw);
+# Only try to auth if auth informations are given
+if($nagiosAuthName ne "" && $nagiosUserPw ne "") {
+	# Set auth informations
+	$oBrowser->credentials($nagiosWebServer.':'.$nagiosWebPort, $nagiosAuthName, $nagiosUser => $nagiosUserPw);
+}
+
+# Handle the given action
+switch($mode) {
+	case 'add' {
+		# Add a new scheduled downtime
+		# ##########################################################################
+		
+		if($downtimeType == 1) {
+			# Schedule Host Downtime
+			$url = $nagiosWebProto . "://" . $nagiosWebServer . ":" . $nagiosWebPort . $nagiosCgiPath . "/cmd.cgi?cmd_typ=55&cmd_mod=2" .
+				"&host=" . $hostname .
+				"&com_author=" . $nagiosUser . "&com_data=" . $downtimeComment .
+				"&trigger=0&start_time=" . $start . "&end_time=" . $end .
+				"&fixed=1&childoptions=1&btnSubmit=Commit";
+	
+			if($debug == 1) {
+				print "HTTP-GET: " . $url;
+			}
+		} else {
+			# Schedule Service Downtime
+			$url = $nagiosWebProto . "://" . $nagiosWebServer . ":" . $nagiosWebPort . $nagiosCgiPath . "/cmd.cgi?cmd_typ=56&cmd_mod=2" .
+				"&host=" . $hostname . "&service=" . $service .
+				"&com_author=" . $nagiosUser . "&com_data=" . $downtimeComment .
+				"&trigger=0&start_time=" . $start . "&end_time=" . $end .
+				"&fixed=1&btnSubmit=Commit";
+			
+			if($debug == 1) {
+				print "HTTP-GET: " . $url;
+			}
+		}
+	
+		# Send the get request to the web server
+		$oResponse = $oBrowser->get($url);
+	
+		if($debug == 1) {
+			print "HTTP-Response: " . $oResponse->content;
+		}
+	
+		# Handle response code, not in detail, only first char
+		switch(substr($oResponse->code,0,1)) {
+			# 2xx response code is OK
+			case 2 {
+				# Do some basic handling with the response content
+				switch($oResponse->content) {
+					case /Your command request was successfully submitted to Nagios for processing/ {
+						
+						# Save the id of the just scheduled downtime
+						if($storeDowntimeIds == 1) {
+							saveDowntimeId();
+						}
+						
+						print "OK: Downtime was submited successfully\n";
+						exit(0);
+					}
+					case /Sorry, but you are not authorized to commit the specified command\./ {
+						print "ERROR: Maybe not authorized or wrong host- or servicename\n";
+						exit(1);
+					}
+					case /Author was not entered/ {
+						print "ERROR: No Author entered, define Author in \$nagiosUser var\n";
+						exit(1);
+					}
+					else {
+						print "ERROR: Some undefined error occured, turn debug mode on to view what happened\n";
+						exit(1);
+					}
+				}
+			}
+			case 3 {
+				print "ERROR: HTTP Response code 3xx says \"moved url\" (".$oResponse->code.")\n";
+				exit(1);
+			}
+			case 4 {
+				print "ERROR: HTTP Response code 4xx says \"client error\" (".$oResponse->code.")\n";
+				print "Hint: This could be caused by wrong auth credentials and/or datetime settings in this script\n";
+				exit(1);
+			}
+			case 5 {
+				print "ERROR: HTTP Response code 5xx says \"server error\" (".$oResponse->code.")\n";
+				exit(1);
+			}
+			else {
+				print "ERROR: HTTP Response code unhandled by script (".$oResponse->code.")\n";
+				exit(1);
+			}
+		}
+	}
+	case 'del' {
+		# Delete the last scheduled downtime
+		# ##########################################################################
+		
+		if($storeDowntimeIds != 1) {
+			print "ERROR: Unable to remove a downtime. The storingDowntimeIds option is set to disabled.\n";
+			exit(1);
+		}
+		
+		# Read all internal downtime ids for this host/service
+		my @downtimes = sort({ $b <=> $a } @{getDowntimeIds()});
+		
+		# Only proceed when downtimes found
+		if($#downtimes >= 0) {
+			# Get the nagios downtime id for the last scheduled downtime
+			my $nagiosDowntimeId = getNagiosDowntimeId($downtimes[0]);
+			
+			if($nagiosDowntimeId ne "") {
+				deleteDowntime($nagiosDowntimeId);
+				
+				# Delete internal downtime id from downtime file
+				delDowntimeId($downtimes[0]);
+			} else {
+				print "ERROR: Unable to remove the downtime. Nagios downtime not found. Maybe already deleted? Or not scheduled yet?\n";
+				exit(1);
+			}
+		} else {
+			print "ERROR: Unable to remove a downtime. No previously scheduled downtime found.\n";
+			exit(1);
+		}
+	}
+	else {
+		print "ERROR: Some undefined error occured, turn debug mode on to view what happened\n";
+		exit(1);
+	}
+}
+
+# Regular end of script
+# ##############################################################################
+
+# #############################################################
+# Subs
+# #############################################################
+
+sub delDowntimeId {
+	my $internalId = shift;
+	
+	my $file = $downtimePath.'/';
+	if($downtimeType == 1) {
+		$file .= $hostname.'.txt';
+	} else {
+		$file .= $hostname.'-'.$service.'.txt';
+	}
+	
+	if(-f $file) {
+		if(open(IN, "<", $file)) {
+			my @contents = <IN>;
+			close(IN);
+			
+			@contents = grep { !/^$internalId$/i } @contents;
+			
+			if(open(OUT, ">", $file)) {
+				print OUT @contents;
+				close OUT;
+			}
+		}
+	}
+}
+
+sub getDowntimeIds {
+	my @arr = ();
+	
+	my $file = $downtimePath.'/';
+	if($downtimeType == 1) {
+		$file .= $hostname.'.txt';
+	} else {
+		$file .= $hostname.'-'.$service.'.txt';
+	}
+	
+	if(-f $file) {
+		if(open(DAT, "<".$file)) {
+			while(my $line = <DAT>) {
+				# Do some validation
+				if($line =~ m/[0-9]+/i) {
+					push(@arr, $line);
+				}
+			}
+			
+			close(DAT); 
+		} else {
+			print "ERROR: Could not open temporary file (".$file.")\n";
+			exit(1);
+		}
+	}
+	
+	return \@arr;
+}
+
+sub saveDowntimeId {
+	my $file = $downtimePath.'/';
+	if($downtimeType == 1) {
+		$file .= $hostname.'.txt';
+	} else {
+		$file .= $hostname.'-'.$service.'.txt';
 	}
 
+	if(open(DAT, ">>".$file)) {
+		print DAT "\n$downtimeId";
+		close(DAT); 
+	} else {
+		print "ERROR: Could not write downtime to temporary file (".$file.")\n";
+		exit(1);
+	}
+}
+
+sub getNagiosDowntimeId {
+	my $internalId = shift;
+	
+	# Get all downtimes
+	my @aDowntimes = @{getAllDowntimes()};
+
+	# Filter the just scheduled downtime
+	for my $i ( 0 .. $#aDowntimes ) {
+		# Matching by:
+		#  - internal id in comment field
+		#  - triggerId: N/A
+		if($aDowntimes[$i]{'triggerId'} eq 'N/A' && $aDowntimes[$i]{'comment'} =~ m/\(ID:$internalId\)/) {
+			
+			if($debug == 1) {
+				print "Found matching downtime: ".$aDowntimes[$i]{'host'}." ".$aDowntimes[$i]{'service'}." ".$aDowntimes[$i]{'entryTime'}." ".$aDowntimes[$i]{'downtimeId'}."\n";
+			}
+			
+			return $aDowntimes[$i]{'downtimeId'};
+		}
+	}
+	
+	return "";
+}
+
+sub deleteDowntime {
+	my $nagiosDowntimeId = shift;
+	
+	if($nagiosDowntimeId eq "") {
+		print "ERROR: Unable to delete downtime. Nagios Downtime ID not given\n";
+		exit(1);
+	}
+	
+	my $url = $nagiosWebProto . "://" . $nagiosWebServer . ":" . $nagiosWebPort . $nagiosCgiPath . "/cmd.cgi?cmd_typ=78&cmd_mod=2&down_id=".$nagiosDowntimeId."&btnSubmit=Commit";
+	my $oResponse;
+	
+	if($debug == 1) {
+		print "HTTP-GET: " . $url;
+	}
+	
 	# Send the get request to the web server
 	$oResponse = $oBrowser->get($url);
 
 	if($debug == 1) {
 		print "HTTP-Response: " . $oResponse->content;
 	}
-
+	
 	# Handle response code, not in detail, only first char
 	switch(substr($oResponse->code,0,1)) {
 		# 2xx response code is OK
@@ -234,12 +458,7 @@ if(!$p->ping($nagiosWebServer)) {
 			switch($oResponse->content) {
 				case /Your command request was successfully submitted to Nagios for processing/ {
 					
-					# Save the id of the just scheduled downtime
-					if($storeDowntimeIds == 1) {
-						saveDowntimeId();
-					}
-					
-					print "OK: Downtime was submited successfully\n";
+					print "OK: Downtime (ID: ".$nagiosDowntimeId.") has been deleted\n";
 					exit(0);
 				}
 				case /Sorry, but you are not authorized to commit the specified command\./ {
@@ -276,51 +495,7 @@ if(!$p->ping($nagiosWebServer)) {
 	}
 }
 
-# Regular end of script
-# ##############################################################################
-
-# ###
-# Subs
-# ###
-
-sub saveDowntimeId {
-	my $file = $downtimePath.'/';
-	if($downtimeType == 1) {
-		$file .= $hostname.'.txt';
-	} else {
-		$file .= $hostname.'-'.$service.'.txt';
-	}
-
-	if(open(DAT, ">>".$file)) {
-		print DAT "\n$downtimeId";
-		close(DAT); 
-	} else {
-		print "ERROR: Could not write downtime to temporary file (".$file.")\n";
-		exit(1);
-	}
-}
-
-sub getNagiosDowntimeId {
-	my $internalId = shift;
-	
-	# Get all downtimes
-	my @aDowntimes = @{getAllDowntimes()};
-
-	# Filter the just scheduled downtime
-	for my $i ( 0 .. $#aDowntimes ) {
-		# Matching by:
-		#  - internal id in comment field
-		#  - triggerId: N/A
-		if($aDowntimes[$i]{'comment'} =~ m/\(ID:$internalId\)/ && $aDowntimes[$i]{'triggerId'} eq 'N/A') {
-			# Filter downtime within last minute
-			print $aDowntimes[$i]{'host'}." ".$aDowntimes[$i]{'service'}." ".$aDowntimes[$i]{'entryTime'}."\n";
-		}
-	}
-}
-
 sub getAllDowntimes {
-	#use vars qw($oBrowser);
-	
 	my @arr = ();
 	my $url;
 	my $oResponse;
@@ -332,7 +507,7 @@ sub getAllDowntimes {
 		print "HTTP-GET: " . $url;
 	}
 	
-	# Fetch information via HTTP-Get
+	# Fetch information via HTTP-GET
   $oResponse = $oBrowser->get($nagiosWebProto . "://" . $nagiosWebServer . ":" . $nagiosWebPort . $nagiosCgiPath . "/extinfo.cgi?type=6");
 
 	if($debug == 1) {
@@ -376,15 +551,21 @@ sub getAllDowntimes {
 sub about {
 		print <<'ABOUT';
 Usage:
-  nagios_downtime [-m add] [-H <hostname>] [-s <service>] [-t <minutes>] [-S <webserver>] [-p <cgi-bin-path>] [-d]
-  nagios_downtime -m del [-H <hostname>] [-s <service>] [-S <webserver>] [-p <cgi-bin-path>] [-d]
+  nagios_downtime [-m add] [-H <hostname>] [-s <service>] [-t <minutes>] 
+                  [-S <webserver>] [-p <cgi-bin-path>] [-u <username>] 
+                  [-p <password>] [-d]
+  nagios_downtime -m del [-H <hostname>] [-s <service>] [-S <webserver>]
+                  [-p <cgi-bin-path>] [-u <username>] [-p <password>] [-d]
   nagios_downtime -h
 
 Nagios Downtime Script by Lars Michelsen <lars@vertical-visions.de>
-Sends a HTTP(S) request to the nagios cgis to add a downtime for a host or service.
+Sends a HTTP(S) request to the nagios cgis to add a downtime for a host or 
+service. Since version 0.5 the script can remove downtimes too when being
+called in "del" mode.
 
 Parameters:
  -m, --mode       Mode to run the script in (Available: add, del)
+ 
  -H, --hostname   Name of the host the downtime should be scheduled for.
                   Important: The name must be same as in Nagios.
  -s, --service    Name of the service the downtime should be scheduled for.
@@ -392,10 +573,12 @@ Parameters:
                   When empty or not set a host downtime is being submited.
  -t, --downtime   Duration of the fixed downtime in minutes
  -c, --comment    Comment for the downtime
+ 
  -S, --server     Nagios Webserver address (IP or DNS)
  -p, --path       Web path to Nagios cgi-bin (Default: /nagios/cgi-bin)
  -u, --user       Usernate to be used for accessing the CGIs
  -P, --password   Password for accessing the CGIs
+ 
  -d, --debug      Enable debug mode
  -h, --help       Show this message
 
