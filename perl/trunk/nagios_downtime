@@ -222,10 +222,6 @@ switch($mode) {
 				"&com_author=" . $nagiosUser . "&com_data=" . $downtimeComment .
 				"&trigger=0&start_time=" . $start . "&end_time=" . $end .
 				"&fixed=1&childoptions=1&btnSubmit=Commit";
-	
-			if($debug == 1) {
-				print "HTTP-GET: " . $url;
-			}
 		} else {
 			# Schedule Service Downtime
 			$url = $nagiosWebProto . "://" . $nagiosWebServer . ":" . $nagiosWebPort . $nagiosCgiPath . "/cmd.cgi?cmd_typ=56&cmd_mod=2" .
@@ -233,10 +229,10 @@ switch($mode) {
 				"&com_author=" . $nagiosUser . "&com_data=" . $downtimeComment .
 				"&trigger=0&start_time=" . $start . "&end_time=" . $end .
 				"&fixed=1&btnSubmit=Commit";
-			
-			if($debug == 1) {
-				print "HTTP-GET: " . $url;
-			}
+		}
+		
+		if($debug == 1) {
+			print "HTTP-GET: " . $url;
 		}
 	
 		# Send the get request to the web server
@@ -329,7 +325,7 @@ switch($mode) {
 		}
 	}
 	else {
-		print "ERROR: Some undefined error occured, turn debug mode on to view what happened\n";
+		print "ERROR: Unknown mode was set (Available: add, del)\n";
 		exit(1);
 	}
 }
