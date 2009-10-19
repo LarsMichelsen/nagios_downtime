@@ -511,7 +511,7 @@ sub getAllDowntimes {
 	}
 	
 	# Fetch information via HTTP-GET
-  $oResponse = $oBrowser->get($nagiosWebProto . "://" . $nagiosWebServer . ":" . $nagiosWebPort . $nagiosCgiPath . "/extinfo.cgi?type=6");
+  $oResponse = $oBrowser->get($url);
 
 	if($debug == 1) {
 		print "HTTP-Response: " . $oResponse->content;
