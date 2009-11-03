@@ -233,6 +233,14 @@ If service <> "" Then
 	downtimeType = 2
 End If
 
+' Initialize the port to be added to the url. If default http port (80), don't add
+' anything
+If nagiosWebPort <> 80 Then
+	nagiosWebPort = ":" & nagiosWebPort
+Else
+	nagiosWebPort = ""
+End If
+
 ' Append the script internal downtime id when id storing is enabled
 ' The downtime ID is important to identify the just scheduled downtime for
 ' later removal. The CGIs do not provide the downtime id right after sending
@@ -266,10 +274,22 @@ Set oBrowser = CreateObject("WinHttp.WinHttpRequest.5.1")
 ' Set the proxy address depending on the configured option
 If proxyAddress = "env" Then
 	oBrowser.SetProxy HTTPREQUEST_PROXYSETTING_PRECONFIG
+	
+	If debug = 1 Then
+		WScript.echo "Proxy-Mode: Env (" & HTTPREQUEST_PROXYSETTING_PRECONFIG & ")"
+	End If
 ElseIf proxyAddress = "" Then
 	oBrowser.SetProxy HTTPREQUEST_PROXYSETTING_DIRECT
+	
+	If debug = 1 Then
+		WScript.echo "Proxy-Mode: Direct (" & HTTPREQUEST_PROXYSETTING_DIRECT & ")"
+	End If
 Else
 	oBrowser.SetProxy HTTPREQUEST_PROXYSETTING_PROXY, proxyAddress
+	
+	If debug = 1 Then
+		WScript.echo "Proxy-Mode: Proxy (" & HTTPREQUEST_PROXYSETTING_PROXY & "): " & proxyAddress
+	End If
 End If
 
 ' Handle the given action
@@ -280,7 +300,7 @@ Select Case mode
 		
 		If downtimeType = 1 Then
 			' Schedule Host Downtime
-			url = nagiosWebProto & "://" & nagiosWebServer & ":" & nagiosWebPort & _
+			url = nagiosWebProto & "://" & nagiosWebServer & nagiosWebPort & _
 			      nagiosCgiPath & "/cmd.cgi?cmd_typ=55&cmd_mod=2" & _
 			      "&host=" & hostname & _
 			      "&com_author=" & nagiosUser & "&com_data=" & downtimeComment & _
@@ -288,7 +308,7 @@ Select Case mode
 			      "&fixed=1&childoptions=1&btnSubmit=Commit"
 		Else
 			' Schedule Service Downtime
-			url = nagiosWebProto & "://" & nagiosWebServer & ":" & nagiosWebPort & _
+			url = nagiosWebProto & "://" & nagiosWebServer & nagiosWebPort & _
 			      nagiosCgiPath & "/cmd.cgi?cmd_typ=56&cmd_mod=2" & _
 			      "&host=" & hostname & "&service=" & service & _
 			      "&com_author=" & nagiosUser & "&com_data=" & downtimeComment & _
@@ -409,8 +429,19 @@ Set oFS = Nothing
 Sub setBrowserOptions()
 	oBrowser.SetRequestHeader "User-Agent", "nagios_downtime.vbs / " & version
 	
+	If debug = 1 Then
+		wscript.echo "User-Agent: " & "nagios_downtime.vbs / " & version
+	End If
+	
 	' Only try to auth if auth informations are given
 	If nagiosAuthName <> "" And nagiosUserPw <> "" Then
+		
+		If debug = 1 Then
+			wscript.echo "Nagios Auth: Server auth"
+			wscript.echo "Nagios User: " & nagiosUser
+			wscript.echo "Nagios Password: " & nagiosUserPw
+		End If
+		
 		' Set the login information (0: Server auth / 1: Proxy auth)
 		oBrowser.SetCredentials nagiosUser, nagiosUserPw, 0
 	End If
@@ -589,7 +620,7 @@ Sub deleteDowntime(nagiosDowntimeId)
 		WScript.quit(1)
 	End If
 	
-	url = nagiosWebProto & "://" & nagiosWebServer & ":" & nagiosWebPort & nagiosCgiPath & "/cmd.cgi?cmd_typ=78&cmd_mod=2&down_id=" & nagiosDowntimeId & "&btnSubmit=Commit"
+	url = nagiosWebProto & "://" & nagiosWebServer & nagiosWebPort & nagiosCgiPath & "/cmd.cgi?cmd_typ=78&cmd_mod=2&down_id=" & nagiosDowntimeId & "&btnSubmit=Commit"
 	
 	If debug = 1 Then
 		WScript.echo "HTTP-GET: " & url
@@ -640,7 +671,7 @@ Function getAllDowntimes()
 	aDowntimes = Array()
 	
 	' Url to downtime page
-	url = nagiosWebProto & "://" & nagiosWebServer & ":" & nagiosWebPort & nagiosCgiPath & "/extinfo.cgi?type=6"
+	url = nagiosWebProto & "://" & nagiosWebServer & nagiosWebPort & nagiosCgiPath & "/extinfo.cgi?type=6"
 
 	If debug = 1 Then
 		WScript.echo "HTTP-GET: " & url
