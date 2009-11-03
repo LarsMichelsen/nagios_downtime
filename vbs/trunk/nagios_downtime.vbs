@@ -85,7 +85,7 @@ nagiosDateFormat = "us"
 ' URL here. The proxy will be set for this script for the choosen web protocol
 ' When this is set to 'env', the proxy settings will be read from IE settings
 ' When this is set to '', the script will use a direct connection
-proxyAddress = "mucproxy1.sdm.de:8080"
+proxyAddress = ""
 
 ' Enable fetching and storing the downtime ids for later downtime removal
 ' The downtime IDs will be stored in a defined temp directory
