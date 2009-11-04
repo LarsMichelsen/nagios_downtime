@@ -45,6 +45,9 @@
 '                 - Script can now delete downtimes when downtime id has been
 '                   saved while scheduling the downtime before
 '
+' 2009-11-04 v0.8 - Default http/https ports are not added to the url anymore
+'                 - Added option to ignore certificate problems
+'
 ' $Id$
 ' ##############################################################################
 
@@ -66,8 +69,9 @@ nagiosServer = "localhost"
 ' IP or FQDN of Nagios web server. In most cases same as $nagiosServer, if
 ' empty automaticaly using $nagiosServer
 nagiosWebServer = ""
-' Port of Nagios webserver (If $nagiosWebProto is set to https, this should be
-' SSL Port 443)
+' Port of Nagios webserver
+' This option is only being recognized when it is not the default port for the
+' choosen protocol in "nagiosWebProto" option
 nagiosWebPort = 80
 ' Web path to Nagios cgi-bin (example: /nagios/cgi-bin) (NO trailing slash!)
 nagiosCgiPath = "/nagios/cgi-bin"
@@ -238,12 +242,14 @@ If service <> "" Then
 	downtimeType = 2
 End If
 
-' Initialize the port to be added to the url. If default http port (80), don't add
-' anything
-If nagiosWebPort <> 80 Then
-	nagiosWebPort = ":" & nagiosWebPort
-Else
+' Initialize the port to be added to the url. If default http port (80) or
+' default ssl port don't add anything
+If nagiosWebProto = "http" And nagiosWebPort = 80 Then
 	nagiosWebPort = ""
+ElseIf nagiosWebProto = "https" And nagiosWebPort <> 443 Then
+	nagiosWebPort = ""
+Else
+	nagiosWebPort = ":" & nagiosWebPort
 End If
 
 ' Append the script internal downtime id when id storing is enabled
