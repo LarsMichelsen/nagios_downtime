@@ -53,7 +53,7 @@ Option Explicit
 Dim nagiosWebProto, nagiosServer, nagiosWebServer, nagiosWebPort, nagiosCgiPath
 Dim nagiosUser, nagiosUserPw, nagiosAuthName, nagiosDateFormat, proxyAddress
 Dim storeDowntimeIds, downtimePath, downtimeId, downtimeType, downtimeDuration
-Dim downtimeComment, debug, version
+Dim downtimeComment, debug, version, ignoreCertProblems
 
 ' ##############################################################################
 ' Configuration (-> Here you have to set some values!)
@@ -86,6 +86,9 @@ nagiosDateFormat = "us"
 ' When this is set to 'env', the proxy settings will be read from IE settings
 ' When this is set to '', the script will use a direct connection
 proxyAddress = ""
+' When using ssl it may be ok for you to ignore untrusted/expired certificats
+' Setting this to 1 all ssl certificate related problems should be ignored
+ignoreCertProblems = 0
 
 ' Enable fetching and storing the downtime ids for later downtime removal
 ' The downtime IDs will be stored in a defined temp directory
@@ -128,6 +131,8 @@ Const FOR_READING = 1
 Const FOR_WRITING = 2
 Const FOR_APPENDING = 8
 Const CREATE_IF_NOT_EXISTS = True
+Const HTTPREQUEST_SSLERROR_IGNORE_FLAG = 4
+Const HTTPREQUEST_SECURITY_IGNORE_ALL = 13056
 
 Set oFS = CreateObject("Scripting.FilesystemObject")
 	
@@ -291,6 +296,12 @@ Else
 		WScript.echo "Proxy-Mode: Proxy (" & HTTPREQUEST_PROXYSETTING_PROXY & "): " & proxyAddress
 	End If
 End If
+
+' When enabled ignore all certificate problems
+If ignoreCertProblems = 1 Then
+  oBrowser.Option(HTTPREQUEST_SSLERROR_IGNORE_FLAG) = HTTPREQUEST_SECURITY_IGNORE_ALL
+End If
+
 
 ' Handle the given action
 Select Case mode
