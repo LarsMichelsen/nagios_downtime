@@ -47,6 +47,7 @@
 '
 ' 2009-11-04 v0.8 - Default http/https ports are not added to the url anymore
 '                 - Added option to ignore certificate problems
+'                 - Fixed problem deleting service downtimes
 '
 ' $Id$
 ' ##############################################################################
@@ -637,7 +638,13 @@ Sub deleteDowntime(nagiosDowntimeId)
 		WScript.quit(1)
 	End If
 	
-	url = nagiosWebProto & "://" & nagiosWebServer & nagiosWebPort & nagiosCgiPath & "/cmd.cgi?cmd_typ=78&cmd_mod=2&down_id=" & nagiosDowntimeId & "&btnSubmit=Commit"
+	If downtimeType = 1 Then
+		' Host downtime
+		url = nagiosWebProto & "://" & nagiosWebServer & nagiosWebPort & nagiosCgiPath & "/cmd.cgi?cmd_typ=78&cmd_mod=2&down_id=" & nagiosDowntimeId & "&btnSubmit=Commit"
+	Else
+		' Service downtime
+		url = nagiosWebProto & "://" & nagiosWebServer & nagiosWebPort & nagiosCgiPath & "/cmd.cgi?cmd_typ=79&cmd_mod=2&down_id=" & nagiosDowntimeId & "&btnSubmit=Commit"
+	End If
 	
 	If debug = 1 Then
 		WScript.echo "HTTP-GET: " & url
