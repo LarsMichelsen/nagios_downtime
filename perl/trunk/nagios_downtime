@@ -31,18 +31,19 @@
 # DECRIPTION:   Sends a HTTP(S)-GET to the nagios web server to
 #	              enter a downtime for a host or service.
 # CHANGES:
-# 2008-05-19 v0.4 - Some code formating
-#                 - The downtime type is now automaticaly detected on given params
-#                 - Changed case of the parameters
-#                 - Added proxy configuration options
-#                 - User Agent is now "nagios_downtime.pl / <version>"
-#                 - Added parameter -S and -p for setting server options via param
-# 2009-10-13 v0.5 - Added new "run modes": add (default) and del to schedule
-#                   or remove downtimes
-#                 - Using the del mode the last scheduled downtime will be removed
-#                 - Added the params -u and -P for giving the username and password
-#                   for accessing the CGIs by the command line
-#                 - Several code cleanups
+# 2008-05-19 v0.4   - Some code formating
+#                   - The downtime type is now automaticaly detected on given params
+#                   - Changed case of the parameters
+#                   - Added proxy configuration options
+#                   - User Agent is now "nagios_downtime.pl / <version>"
+#                   - Added parameter -S and -p for setting server options via param
+# 2009-10-13 v0.5   - Added new "run modes": add (default) and del to schedule
+#                     or remove downtimes
+#                   - Using the del mode the last scheduled downtime will be removed
+#                   - Added the params -u and -P for giving the username and password
+#                     for accessing the CGIs by the command line
+#                   - Several code cleanups
+# 2009-11-30 v0.5.1 - Fixed service downtime deletion
 #
 # $Id$
 # ##############################################################################
@@ -439,8 +440,15 @@ sub deleteDowntime {
 		print "ERROR: Unable to delete downtime. Nagios Downtime ID not given\n";
 		exit(1);
 	}
+
+	if($downtimeType == 1) {
+		# Host downtime
+		$url = $nagiosWebProto . "://" . $nagiosWebServer . ":" . $nagiosWebPort . $nagiosCgiPath . "/cmd.cgi?cmd_typ=78&cmd_mod=2&down_id=".$nagiosDowntimeId."&btnSubmit=Commit";
+	} else {
+		# Service downtime
+		$url = $nagiosWebProto . "://" . $nagiosWebServer . ":" . $nagiosWebPort . $nagiosCgiPath . "/cmd.cgi?cmd_typ=79&cmd_mod=2&down_id=".$nagiosDowntimeId."&btnSubmit=Commit";
+	}
 	
-	my $url = $nagiosWebProto . "://" . $nagiosWebServer . ":" . $nagiosWebPort . $nagiosCgiPath . "/cmd.cgi?cmd_typ=78&cmd_mod=2&down_id=".$nagiosDowntimeId."&btnSubmit=Commit";
 	my $oResponse;
 	
 	if($debug == 1) {
