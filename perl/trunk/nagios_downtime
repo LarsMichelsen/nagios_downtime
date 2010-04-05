@@ -378,6 +378,7 @@ sub getDowntimeIds {
 			while(my $line = <DAT>) {
 				# Do some validation
 				if($line =~ m/[0-9]+/i) {
+					chomp($line);
 					push(@arr, $line);
 				}
 			}
