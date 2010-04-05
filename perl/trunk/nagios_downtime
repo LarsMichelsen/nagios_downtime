@@ -2,8 +2,8 @@
 # ##############################################################################
 # nagios_downtime
 #
-# Copyright (c) 2007-2009 Lars Michelsen <lars@vertical-visions.de>
-# http://www.vertical-visions.de
+# Copyright (c) 2007-2010 Lars Michelsen <lm@larsmichelsen.com>
+# http://larsmichelsen.com
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation
@@ -44,6 +44,7 @@
 #                     for accessing the CGIs by the command line
 #                   - Several code cleanups
 # 2009-11-30 v0.5.1 - Fixed service downtime deletion
+# 2010-04-05 v0.6   - Chomping newlines from stored downtimes now
 #
 # $Id$
 # ##############################################################################
@@ -102,7 +103,7 @@ my $downtimeComment = "Perl Downtime-Script";
 # Default Debugmode: off => 0 or on => 1
 my $debug = 0;
 # Script version
-my $version = "0.5";
+my $version = "0.6";
 
 # ##############################################################################
 # Don't change anything below, except you know what you are doing.
