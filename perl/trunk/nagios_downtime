@@ -45,6 +45,8 @@
 #                   - Several code cleanups
 # 2009-11-30 v0.5.1 - Fixed service downtime deletion
 # 2010-04-05 v0.6   - Chomping newlines from stored downtimes now
+# 2010-06-20 v0.6.1 - Fixed env_proxy calls to LWP object
+#                   - Explicitly unsetting env_proxy when no proxy set
 #
 # $Id$
 # ##############################################################################
@@ -200,8 +202,9 @@ $oBrowser->agent("nagios_downtime.pl / " . $version);
 
 # Set the proxy address depending on the configured option
 if($proxyAddress eq 'env') {
-	$oBrowser->env_proxy = 1;
+	$oBrowser->env_proxy(1);
 } else {
+	$oBrowser->env_proxy(0);
 	$oBrowser->proxy([$nagiosWebProto], $proxyAddress);
 }
  
