@@ -47,6 +47,8 @@
 # 2010-04-05 v0.6   - Chomping newlines from stored downtimes now
 # 2010-06-20 v0.6.1 - Fixed env_proxy calls to LWP object
 #                   - Explicitly unsetting env_proxy when no proxy set
+#                   - Checking for Crypt::SSLeay module to load when https
+#                     url given
 #
 # $Id$
 # ##############################################################################
@@ -156,6 +158,13 @@ if($help) {
 # Mode can be add or del, default is "add"
 if($mode eq "") {
 	$mode = "add";
+}
+
+if($nagiosWebProto eq "https" || $nagiosWebPort eq "443") {
+	if(!eval "require Crypt::SSLeay") {
+		print "ERROR: LWP can not handle SSL urls without Crypt::SLeay module.\n";
+		exit(1);
+	}
 }
 
 # Get hostname if not set via param
