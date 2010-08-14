@@ -69,6 +69,25 @@ Examples:
                   -u nagiosadmin -P nagiosadmin -H webserver.my-domain.com
 
 ###############################################################################
+# Init script installation (Should work on SuSE, RedHat, CentOS, Fedora)
+
+Copy the file nagios_downtime to /usr/bin. And make sure it is executable.
+
+cp -p nagios_downtime /usr/bin
+chmod +x /usr/bin/nagios_downtime
+
+Copy the init script nagios_downtime.init to /etc/init.d. Also make sure it is
+executable.
+
+cp -p nagios_downtime.init /etc/init.d
+chmod +x /etc/init.d/nagios_downtime.init
+
+Activate the init script to be executed on system shutdown.
+
+chkconfig --add nagios_downtime
+chkconfig nagios_downtime on
+
+###############################################################################
 # Downtime deletion
 
 The deletion of downtimes is a new feature in nagios_downtime 0.5.
