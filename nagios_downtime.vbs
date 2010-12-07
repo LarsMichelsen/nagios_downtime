@@ -49,6 +49,9 @@
 '                 - Added option to ignore certificate problems
 '                 - Fixed problem deleting service downtimes
 '
+' 2010-12-02 v0.8.1 - Fixed / in to \ in path definitions (Thx Ronny Bunke)
+'                   - Modify Messages for Icinga (Thx Ronny Bunke)
+'
 ' $Id$
 ' ##############################################################################
 
@@ -75,13 +78,14 @@ nagiosWebServer = ""
 ' choosen protocol in "nagiosWebProto" option
 nagiosWebPort = 80
 ' Web path to Nagios cgi-bin (example: /nagios/cgi-bin) (NO trailing slash!)
+' In case of Icinga this would be "/icinga/cgi-bin" by default
 nagiosCgiPath = "/nagios/cgi-bin"
 ' User to take for authentication and author to enter the downtime (example:
-' nagiosadmin)
+' nagiosadmin). In case of Icinga this would be "icingaadmin" by default
 nagiosUser = "nagiosadmin"
 ' Password for above user
-nagiosUserPw = ""
-' Name of authentication realm, set in the Nagios .htaccess file 
+nagiosUserPw = "nagiosadmin"
+' Name of authentication realm, set in the Nagios .htaccess file
 ' (example: "Nagios Access")
 nagiosAuthName = "Nagios Access"
 ' Nagios date format (same like set in value "date_format" in nagios.cfg)
@@ -98,7 +102,7 @@ ignoreCertProblems = 0
 ' Enable fetching and storing the downtime ids for later downtime removal
 ' The downtime IDs will be stored in a defined temp directory
 storeDowntimeIds = 1
-' The script will generate temporary files named (<host>.txt or 
+' The script will generate temporary files named (<host>.txt or
 ' <host>-<service>.txt). The files will contain the script internal
 ' downtime ids and/or the nagios downtime ids.
 ' These files are needed for later downtime removal
@@ -116,11 +120,11 @@ downtimeType = 1
 ' Default Downtime duration in minutes
 downtimeDuration = 10
 ' Default Downtime text
-downtimeComment = "Perl Downtime-Script"
+downtimeComment = "Downtime-Script"
 ' Default Debugmode: off => 0 or on => 1
 debug = 0
 ' Script version
-version = "0.7"
+version = "0.8.1"
 
 ' ##############################################################################
 ' Don't change anything below, except you know what you are doing.
@@ -140,7 +144,7 @@ Const HTTPREQUEST_SSLERROR_IGNORE_FLAG = 4
 Const HTTPREQUEST_SECURITY_IGNORE_ALL = 13056
 
 Set oFS = CreateObject("Scripting.FilesystemObject")
-	
+
 hostname = ""
 service = ""
 url = ""
@@ -155,7 +159,7 @@ Do While i < Wscript.Arguments.Count
 	If WScript.Arguments(i) = "/H" or WScript.Arguments(i) = "-H" or UCase(WScript.Arguments(i)) = "-HOSTNAME" or UCase(WScript.Arguments(i)) = "/HOSTNAME" then
 		' Hostname: /H, /hostname, -H, -hostname
 		i = i + 1
-		
+
 		If i < Wscript.Arguments.Count Then
 			hostname = WScript.Arguments(i)
 		Else
@@ -165,42 +169,42 @@ Do While i < Wscript.Arguments.Count
 	ElseIf WScript.Arguments(i) = "/m" or WScript.Arguments(i) = "-m" or UCase(WScript.Arguments(i) = "-MODE") or UCase(WScript.Arguments(i)) = "/MODE" then
 		' Mode: /m, /mode, -m, -mode
 		i = i + 1
-		
+
 		mode = WScript.Arguments(i)
 	ElseIf WScript.Arguments(i) = "/S" or WScript.Arguments(i) = "-S" or UCase(WScript.Arguments(i)) = "/SERVER" or UCase(WScript.Arguments(i)) = "-SERVER" then
 		' Nagios Server: /S, /server, -S, -server
 		i = i + 1
-		
+
 		nagiosServer = WScript.Arguments(i)
 	ElseIf WScript.Arguments(i) = "/p" or WScript.Arguments(i) = "-p" or UCase(WScript.Arguments(i)) = "/PATH" or UCase(WScript.Arguments(i)) = "-PATH" then
 		' Nagios CGI Path: /p, /path, -p, -path
 		i = i + 1
-		
+
 		nagiosCgiPath = WScript.Arguments(i)
 	ElseIf WScript.Arguments(i) = "/u" or WScript.Arguments(i) = "-u" or UCase(WScript.Arguments(i)) = "/USER" or UCase(WScript.Arguments(i)) = "-USER" then
 		' Nagios User: /u, /user, -u, -user
 		i = i + 1
-		
+
 		nagiosUser = WScript.Arguments(i)
 	ElseIf WScript.Arguments(i) = "/P" or WScript.Arguments(i) = "-P" or UCase(WScript.Arguments(i)) = "/PASSWORD" or UCase(WScript.Arguments(i)) = "-PASSWORD" then
 		' Nagios Password: /P, /password, -P, -password
 		i = i + 1
-		
+
 		nagiosUserPw = WScript.Arguments(i)
 	ElseIf WScript.Arguments(i) = "/s" or WScript.Arguments(i) = "-s" or UCase(WScript.Arguments(i)) = "/SERVICE" or UCase(WScript.Arguments(i)) = "-SERVICE" then
 		' Servicename: /s, /service, -s, -service
 		i = i + 1
-		
+
 		service = WScript.Arguments(i)
 	ElseIf WScript.Arguments(i) = "/t" or WScript.Arguments(i) = "-t" or UCase(WScript.Arguments(i)) = "/DOWNTIME" or UCase(WScript.Arguments(i)) = "-DOWNTIME" Then
 		' downtime duration: /t, /downtime, -t, -downtime
 		i = i + 1
-		
+
 		downtimeDuration = WScript.Arguments(i)
 	ElseIf WScript.Arguments(i) = "/c" or WScript.Arguments(i) = "-c" or UCase(WScript.Arguments(i)) = "/COMMENT" or UCase(WScript.Arguments(i)) = "-COMMENT" Then
 		' downtime comment: /c, /comment, -c, -comment
 		i = i + 1
-		
+
 		downtimeComment = WScript.Arguments(i)
 	ElseIf UCase(WScript.Arguments(i)) = "/D" or UCase(WScript.Arguments(i)) = "-D" or UCase(WScript.Arguments(i)) = "/DEBUG" or UCase(WScript.Arguments(i)) = "-DEBUG" Then
 		' debug mode: /d, -d, /debug, -debug
@@ -211,7 +215,7 @@ Do While i < Wscript.Arguments.Count
 	Else
 		' ....
 	End If
-	
+
 	i = i + 1
 Loop
 
@@ -233,7 +237,7 @@ If hostname = "" Then
 End If
 
 ' When no nagios webserver is set the webserver and Nagios should be on the same
-' host 
+' host
 If nagiosWebServer = "" Then
 	nagiosWebServer = nagiosServer
 End If
@@ -270,7 +274,7 @@ End If
 
 ' Calculate the start of the downtime
 timeStart = gettime(timeNow)
- 
+
 ' Calculate the end of the downtime
 timeEnd = gettime(DateAdd("n", downtimeDuration, timeNow))
 
@@ -286,19 +290,19 @@ Set oBrowser = CreateObject("WinHttp.WinHttpRequest.5.1")
 ' Set the proxy address depending on the configured option
 If proxyAddress = "env" Then
 	oBrowser.SetProxy HTTPREQUEST_PROXYSETTING_PRECONFIG
-	
+
 	If debug = 1 Then
 		WScript.echo "Proxy-Mode: Env (" & HTTPREQUEST_PROXYSETTING_PRECONFIG & ")"
 	End If
 ElseIf proxyAddress = "" Then
 	oBrowser.SetProxy HTTPREQUEST_PROXYSETTING_DIRECT
-	
+
 	If debug = 1 Then
 		WScript.echo "Proxy-Mode: Direct (" & HTTPREQUEST_PROXYSETTING_DIRECT & ")"
 	End If
 Else
 	oBrowser.SetProxy HTTPREQUEST_PROXYSETTING_PROXY, proxyAddress
-	
+
 	If debug = 1 Then
 		WScript.echo "Proxy-Mode: Proxy (" & HTTPREQUEST_PROXYSETTING_PROXY & "): " & proxyAddress
 	End If
@@ -315,7 +319,7 @@ Select Case mode
 	Case "add"
 		' Add a new scheduled downtime
 		' ##########################################################################
-		
+
 		If downtimeType = 1 Then
 			' Schedule Host Downtime
 			url = nagiosWebProto & "://" & nagiosWebServer & nagiosWebPort & _
@@ -333,29 +337,29 @@ Select Case mode
 			      "&trigger=0&start_time=" & timeStart & "&end_time=" & timeEnd & _
 			      "&fixed=1&btnSubmit=Commit"
 		End If
-		
+
 		If debug = 1 Then
 			wscript.echo "HTTP-GET: " & url
 		End If
-		
+
 		oBrowser.Open "GET", url
 		setBrowserOptions()
 		oBrowser.Send
-		
+
 		If debug = 1 Then
 			Wscript.echo "HTTP-Response: " & oBrowser.ResponseText
 			Wscript.echo "HTTP-Response-Code: " & oBrowser.Status
 		End If
-		
+
 		' Handle response code, not in detail, only first char
 		Select Case Left(oBrowser.Status, 1)
 			' 2xx response code is OK
 			Case 2
-				If InStr(oBrowser.ResponseText, "Your command request was successfully submitted to Nagios for processing") > 0 Then
+				If InStr(oBrowser.ResponseText, "Your command requests were successfully submitted to") > 0 Then
 					' Save the id of the just scheduled downtime
 					If storeDowntimeIds = 1 Then
 						saveDowntimeId()
-					
+
 						WScript.echo "OK: Downtime was submited successfully"
 						WScript.Quit(0)
 					ElseIf InStr(oBrowser.ResponseText, "Sorry, but you are not authorized to commit the specified command") > 0 Then
@@ -386,36 +390,36 @@ Select Case mode
 	Case "del"
 		' Delete the last scheduled downtime
 		' ##########################################################################
-		
+
 		If storeDowntimeIds <> 1 Then
 			WScript.echo "ERROR: Unable to remove a downtime. The storingDowntimeIds option is set to disabled."
 			WScript.Quit(1)
 		End If
-		
+
 		' Read all internal downtime ids for this host/service
 		Dim aDowntimes
 		aDowntimes = getDowntimeIds()
-		
+
 		' Only proceed when downtimes found
 		If UBound(aDowntimes)+1 > 0 Then
 			' Sort downtimes (lowest number at top)
 			aDowntimes = bubblesort(aDowntimes)
-			
+
 			If debug = 1 Then
 				WScript.echo "Trying to delete with internal downtime id: " & aDowntimes(0)
 			End If
-			
+
 			' Get the nagios downtime id for the last scheduled downtime
 			Dim nagiosDowntimeId
 			nagiosDowntimeId = getNagiosDowntimeId(aDowntimes(0))
-			
+
 			If debug = 1 Then
 				WScript.echo "Translated downtime id: " & aDowntimes(0) & "(internal) => " & nagiosDowntimeId & " (Nagios)"
 			End If
-			
+
 			If nagiosDowntimeId <> "" Then
 				deleteDowntime(nagiosDowntimeId)
-				
+
 				' Delete internal downtime id from downtime file
 				' This only gets executed on successfull deleteDowntime() cause the
 				' function terminates the script on any problem
@@ -446,20 +450,20 @@ Set oFS = Nothing
 
 Sub setBrowserOptions()
 	oBrowser.SetRequestHeader "User-Agent", "nagios_downtime.vbs / " & version
-	
+
 	If debug = 1 Then
 		wscript.echo "User-Agent: " & "nagios_downtime.vbs / " & version
 	End If
-	
+
 	' Only try to auth if auth informations are given
 	If nagiosAuthName <> "" And nagiosUserPw <> "" Then
-		
+
 		If debug = 1 Then
 			wscript.echo "Nagios Auth: Server auth"
 			wscript.echo "Nagios User: " & nagiosUser
 			wscript.echo "Nagios Password: " & nagiosUserPw
 		End If
-		
+
 		' Set the login information (0: Server auth / 1: Proxy auth)
 		oBrowser.SetCredentials nagiosUser, nagiosUserPw, 0
 	End If
@@ -520,25 +524,25 @@ End Sub
 
 Sub delDowntimeId(internalId)
 	Dim file, aDowntimes, id
-	
-	file = downtimePath & "/"
+
+	file = downtimePath & "\"
 	If downtimeType = 1 Then
 		file = file & hostname & ".txt"
 	Else
 		file = file & hostname & "-" & service & ".txt"
 	End If
-	
+
 	' Read all downtimes to array
-	
+
 	Set oFile = oFS.OpenTextfile(file, FOR_READING)
 	Do While Not oFile.AtEndOfStream
 		Push aDowntimes, oFile.Readline
 	Loop
 	oFile.Close
-	
+
 	' Filter downtime
 	ArrayRemoveVal aDowntimes, internalId
-	
+
 	' Write downtimes back to array
 	Set oFile = oFS.OpenTextfile(file, FOR_WRITING, CREATE_IF_NOT_EXISTS)
 	For Each id In aDowntimes
@@ -548,31 +552,31 @@ Sub delDowntimeId(internalId)
 		oFile.Writeline id
 	Next
 	oFile.Close
-	
+
 	Set oFile = Nothing
 End Sub
 
 Function getDowntimeIds()
 	Dim file, aDowntimes, sLine, oRegex, oMatches
 	aDowntimes = Array()
-	
-	file = downtimePath & "/"
+
+	file = downtimePath & "\"
 	If downtimeType = 1 Then
 		file = file & hostname & ".txt"
 	Else
 		file = file & hostname & "-" & service & ".txt"
 	End If
-	
+
 	Set oRegex = New RegExp
 	oRegex.Pattern = "[0-9]+"
-	
+
 	' Read all downtimes to array
-	
+
 	If oFS.FileExists(file) Then
 		Set oFile = oFS.OpenTextfile(file, FOR_READING)
 		Do While Not oFile.AtEndOfStream
 			sLine = oFile.Readline
-			
+
 			' Do some validation
 			If oRegex.Execute(sLine).Count > 0 Then
 				Push aDowntimes, sLine
@@ -583,24 +587,24 @@ Function getDowntimeIds()
 		WScript.echo "ERROR: Could not open temporary file (" & file & ")"
 		WScript.Quit(1)
 	End If
-	
+
 	getDowntimeIds = aDowntimes
 End Function
 
 Sub saveDowntimeId()
 	Dim file
-	
-	file = downtimePath & "/"
+
+	file = downtimePath & "\"
 	If downtimeType = 1 Then
 		file = file & hostname & ".txt"
 	Else
 		file = file & hostname & "-" & service & ".txt"
 	End If
-	
+
 	If debug = 1 Then
 		wscript.echo "Saving downtime to file: " & file
 	End If
-	
+
 	Set oFile = oFS.OpenTextfile(file, FOR_APPENDING, CREATE_IF_NOT_EXISTS)
 	oFile.Writeline downtimeId
 	oFile.Close
@@ -612,7 +616,7 @@ End Sub
 
 Function getNagiosDowntimeId(internalId)
 	getNagiosDowntimeId = ""
-	
+
 	Dim aDowntimes, id
 	' Get all downtimes
 	aDowntimes = getAllDowntimes()
@@ -626,7 +630,7 @@ Function getNagiosDowntimeId(internalId)
 			If debug = 1 Then
 				WScript.echo "Found matching downtime: " & id("host")  & " " & id("service") & " " & id("entryTime") & " " & id("downtimeId")
 			End If
-			
+
 			getNagiosDowntimeId = id("downtimeId")
 		End If
 	Next
@@ -637,7 +641,7 @@ Sub deleteDowntime(nagiosDowntimeId)
 		WScript.echo "ERROR: Unable to delete downtime. Nagios Downtime ID not given"
 		WScript.quit(1)
 	End If
-	
+
 	If downtimeType = 1 Then
 		' Host downtime
 		url = nagiosWebProto & "://" & nagiosWebServer & nagiosWebPort & nagiosCgiPath & "/cmd.cgi?cmd_typ=78&cmd_mod=2&down_id=" & nagiosDowntimeId & "&btnSubmit=Commit"
@@ -645,24 +649,24 @@ Sub deleteDowntime(nagiosDowntimeId)
 		' Service downtime
 		url = nagiosWebProto & "://" & nagiosWebServer & nagiosWebPort & nagiosCgiPath & "/cmd.cgi?cmd_typ=79&cmd_mod=2&down_id=" & nagiosDowntimeId & "&btnSubmit=Commit"
 	End If
-	
+
 	If debug = 1 Then
 		WScript.echo "HTTP-GET: " & url
 	End If
-	
+
 	oBrowser.Open "GET", url
 	setBrowserOptions()
 	oBrowser.Send
-	
+
 	If debug = 1 Then
 		Wscript.echo "HTTP-Response: " & oBrowser.ResponseText
 	End If
-	
+
 	' Handle response code, not in detail, only first char
 	Select Case Left(oBrowser.Status, 1)
 		' 2xx response code is OK
 		Case 2
-			If InStr(oBrowser.ResponseText, "Your command request was successfully submitted to Nagios for processing") > 0 Then
+			If InStr(oBrowser.ResponseText, "Your command requests were successfully submitted to") > 0 Then
 				WScript.echo "OK: Downtime (ID: " & nagiosDowntimeId & ") has been deleted"
 			ElseIf InStr(oBrowser.ResponseText, "Sorry, but you are not authorized to commit the specified command") > 0 Then
 				WScript.echo "ERROR: Maybe not authorized or wrong host- or servicename"
@@ -693,26 +697,26 @@ End Sub
 Function getAllDowntimes()
 	Dim aDowntimes, oRegex, oMatches, oDict
 	aDowntimes = Array()
-	
+
 	' Url to downtime page
 	url = nagiosWebProto & "://" & nagiosWebServer & nagiosWebPort & nagiosCgiPath & "/extinfo.cgi?type=6"
 
 	If debug = 1 Then
 		WScript.echo "HTTP-GET: " & url
 	End If
-	
+
 	' Fetch information via HTTP-GET
   oBrowser.Open "GET", url
 	setBrowserOptions()
 	oBrowser.Send
-	
+
 	If debug = 1 Then
 		WScript.echo "HTTP-Response: " & oBrowser.ResponseText
 	End If
-	
+
 	Set oRegex = New RegExp
-	oRegex.IgnoreCase = True 
-	
+	oRegex.IgnoreCase = True
+
 	' Parse all downtimes to an array
 	Dim lineType, sLine
 	lineType = ""
@@ -721,10 +725,10 @@ Function getAllDowntimes()
 		' Filter only downtime lines
 		oRegex.Pattern = "CLASS=\'downtime(Odd|Even)"
 		Set oMatches = oRegex.Execute(sLine)
-		
+
 		If oMatches.Count > 0 Then
 			lineType = "downtime" & oMatches(0).SubMatches(0)
-			
+
 			oRegex.Pattern = "<tr\sCLASS=\'" & lineType & "\'><td\sCLASS=\'" & lineType & _
 			                 "\'><A\sHREF=\'extinfo\.cgi\?type=1&host=([^\']+)\'>[^<]+<\/A>" & _
 			                 "<\/td><td\sCLASS=\'" & lineType & "\'>([^<]+)<\/td><td\sCLASS=\'" & _
@@ -734,13 +738,13 @@ Function getAllDowntimes()
 			                 "<\/td><td\sCLASS=\'" & lineType & "\'>([^<]+)<\/td><td\sCLASS=\'" & _
 			                 lineType & "\'>([^<]+)<\/td><td\sCLASS=\'" & lineType & "\'>([^<]+)<\/td>"
 			Set oMatches = oRegex.Execute(sLine)
-			
+
 			If oMatches.Count > 0 Then
 				' Host downtime:
 				' <tr CLASS='downtimeEven'><td CLASS='downtimeEven'><A HREF='extinfo.cgi?type=1&host=dev.nagvis.org'>dev.nagvis.org</A></td><td CLASS='downtimeEven'>10-13-2009 09:15:35</td><td CLASS='downtimeEven'>Nagios Admin</td><td CLASS='downtimeEven'>Perl Downtime-Script</td><td CLASS='downtimeEven'>01-10-2010 09:15:35</td><td CLASS='downtimeEven'>01-10-2010 09:25:35</td><td CLASS='downtimeEven'>Fixed</td><td CLASS='downtimeEven'>0d 0h 10m 0s</td><td CLASS='downtimeEven'>9</td><td CLASS='downtimeEven'>N/A</td>
-				
+
 				Set oDict = CreateObject("Scripting.Dictionary")
-				
+
 				If debug = 1 Then
 					WScript.echo "Found host downtime:"
 					WScript.echo "Host: " & oMatches(0).SubMatches(0) & _
@@ -754,7 +758,7 @@ Function getAllDowntimes()
 					             " DowntimeID: " & oMatches(0).SubMatches(8) & _
 					             " TriggerID: " & oMatches(0).SubMatches(9)
 				End If
-				
+
 				oDict.Add "host", oMatches(0).SubMatches(0)
 				oDict.Add "service", ""
 				oDict.Add "entryTime", oMatches(0).SubMatches(1)
@@ -766,7 +770,7 @@ Function getAllDowntimes()
 				oDict.Add "duration", oMatches(0).SubMatches(7)
 				oDict.Add "downtimeId", oMatches(0).SubMatches(8)
 				oDict.Add "triggerId", oMatches(0).SubMatches(9)
-				
+
 				' Push to array
 				ReDim Preserve aDowntimes(UBound(aDowntimes) + 1)
 				Set aDowntimes(UBound(aDowntimes)) = oDict
@@ -783,13 +787,13 @@ Function getAllDowntimes()
 				                 lineType & "\'>([^<]+)<\/td><td\sCLASS=\'" & lineType & "\'>" & _
 				                 "([^<]+)<\/td><td\sCLASS=\'" & lineType & "\'>([^<]+)<\/td>"
 				Set oMatches = oRegex.Execute(sLine)
-				
+
 				If oMatches.Count > 0 Then
 					' Service downtime:
 					' <tr CLASS='downtimeEven'><td CLASS='downtimeEven'><A HREF='extinfo.cgi?type=1&host=dev.nagvis.org'>dev.nagvis.org</A></td><td CLASS='downtimeEven'><A HREF='extinfo.cgi?type=2&host=dev.nagvis.org&service=HTTP'>HTTP</A></td><td CLASS='downtimeEven'>10-13-2009 10:28:30</td><td CLASS='downtimeEven'>Nagios Admin</td><td CLASS='downtimeEven'>test</td><td CLASS='downtimeEven'>10-13-2009 10:28:11</td><td CLASS='downtimeEven'>10-13-2009 12:28:11</td><td CLASS='downtimeEven'>Fixed</td><td CLASS='downtimeEven'>0d 2h 0m 0s</td><td CLASS='downtimeEven'>145</td><td CLASS='downtimeEven'>N/A</td>
-					
+
 					Set oDict = CreateObject("Scripting.Dictionary")
-					
+
 					If debug = 1 Then
 						WScript.echo "Found service downtime:"
 						WScript.echo "Host: " & oMatches(0).SubMatches(0) & _
@@ -804,7 +808,7 @@ Function getAllDowntimes()
 						             " DowntimeID: " & oMatches(0).SubMatches(9) & _
 						             " TriggerID: " & oMatches(0).SubMatches(10)
 					End If
-					
+
 					oDict.Add "host", oMatches(0).SubMatches(0)
 					oDict.Add "service", oMatches(0).SubMatches(1)
 					oDict.Add "entryTime", oMatches(0).SubMatches(2)
@@ -816,7 +820,7 @@ Function getAllDowntimes()
 					oDict.Add "duration", oMatches(0).SubMatches(8)
 					oDict.Add "downtimeId", oMatches(0).SubMatches(9)
 					oDict.Add "triggerId", oMatches(0).SubMatches(10)
-					
+
 					' Push to array
 					ReDim Preserve aDowntimes(UBound(aDowntimes) + 1)
 					Set aDowntimes(UBound(aDowntimes)) = oDict
@@ -824,7 +828,7 @@ Function getAllDowntimes()
 			End If
 		End If
 	Next
-	
+
 	getAllDowntimes = aDowntimes
 End Function
 
@@ -833,14 +837,14 @@ End Function
 Function PingTest(strHostOrIP)
 	' Deklarieren der Variablen
 	Dim objSh, strCommand, intWindowStyle, blnWaitOnReturn
-	
+
 	' Bauen des Kommandos
 	strCommand = "%ComSpec% /C %SystemRoot%\system32\ping.exe -n 1 " & strHostOrIP & " | " & "%SystemRoot%\system32\find.exe /i " & Chr(34) & "TTL=" & Chr(34)
 	Set objSh = WScript.CreateObject("WScript.Shell")
-	
+
 	' Ausführen des Kommandos und Füllen des Rückgabeparameters
 	PingTest = Not CBool(objSh.Run(strCommand, 0, True))
-	
+
 	Set objSh = Nothing
 End Function
 
@@ -849,7 +853,7 @@ Function gettime(dateTime)
 	If dateTime = "" Then
 		dateTime = Now
 	End If
-	
+
 	Dim sec, min, h, mday, m, y
 	sec = Second(dateTime)
 	min = Minute(dateTime)
@@ -874,7 +878,7 @@ Function gettime(dateTime)
 	If sec < 10 Then
 		sec = "0" & sec
 	End If
-	
+
 	Select Case nagiosDateFormat
 		Case "euro"
 			gettime = mday & "-" & m & "-" & y & " " & h & ":" & min & ":" & sec
@@ -892,7 +896,7 @@ End Function
 
 Function Push(ByRef mArray, ByVal mValue)
 	Dim mValEl
-	
+
 	If IsArray(mArray) Then
 		If IsArray(mValue) Then
 			For Each mValEl In mValue
@@ -910,7 +914,7 @@ Function Push(ByRef mArray, ByVal mValue)
 			mArray = Array(mValue)
 		End If
 	End If
-	
+
 	Push = UBound(mArray)
 End Function
 
