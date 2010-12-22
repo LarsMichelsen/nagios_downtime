@@ -147,7 +147,7 @@ GetOptions(
 	"u|user=s" => \$nagiosUser,
 	"P|password=s" => \$nagiosUserPw,
 	"t|downtime=i" => \$downtimeDuration,
-	"c|comment=i" => \$downtimeComment,
+	"c|comment=s" => \$downtimeComment,
 	"s|service=s" => \$service);
 
 if($help) {
