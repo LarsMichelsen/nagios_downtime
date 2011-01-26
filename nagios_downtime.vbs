@@ -1,8 +1,8 @@
 ' ##############################################################################
 ' nagios_downtime.vbs
 '
-' Copyright (c) 2005-2009 Lars Michelsen <lars@vertical-visions.de>
-' http://www.vertical-visions.de
+' Copyright (c) 2005-2011 Lars Michelsen <lm@larsmichelsen.com>
+' http://larsmichelsen.com/
 '
 ' Permission is hereby granted, free of charge, to any person
 ' obtaining a copy of this software and associated documentation
@@ -51,6 +51,9 @@
 '
 ' 2010-12-02 v0.8.1 - Fixed / in to \ in path definitions (Thx Ronny Bunke)
 '                   - Modify Messages for Icinga (Thx Ronny Bunke)
+'
+' 2011-01-26 v0.8.2 - Applied changes to better handle nagios response texts.
+'                     Might fix a problem with deleting downtims (Thx Rob Sampson)
 '
 ' $Id$
 ' ##############################################################################
@@ -666,6 +669,25 @@ Sub deleteDowntime(nagiosDowntimeId)
 	Select Case Left(oBrowser.Status, 1)
 		' 2xx response code is OK
 		Case 2
+			If InStr(oBrowser.ResponseText, "Your command requests were successfully submitted to") > 0 Or InStr(oBrowser.ResponseText, "Your command request was successfully submitted to") > 0 Then
+				' Save the id of the just scheduled downtime
+				If storeDowntimeIds = 1 Then saveDowntimeId()
+					WScript.echo "OK: Downtime was submited successfully"
+					WScript.Quit(0)
+				Else
+					WScript.echo "Downtime IDs are not set to be stored"
+					WScript.Quit(1)
+				End If
+			ElseIf InStr(oBrowser.ResponseText, "Sorry, but you are not authorized to commit the specified command") > 0 Then
+				WScript.echo "ERROR: Maybe not authorized or wrong host- or servicename"
+				WScript.Quit(1)
+			ElseIf InStr(oBrowser.ResponseText, "Author was not entered") > 0 Then
+				WScript.echo "ERROR: No Author entered, define Author in nagiosUser var"
+				WScript.Quit(1)
+			Else
+				WScript.echo "ERROR: Some undefined error occured, turn debug mode on to view what happened"
+				WScript.Quit(1)
+			End If
 			If InStr(oBrowser.ResponseText, "Your command requests were successfully submitted to") > 0 Then
 				WScript.echo "OK: Downtime (ID: " & nagiosDowntimeId & ") has been deleted"
 			ElseIf InStr(oBrowser.ResponseText, "Sorry, but you are not authorized to commit the specified command") > 0 Then
