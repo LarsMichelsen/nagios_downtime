@@ -358,8 +358,7 @@ Select Case mode
 		Select Case Left(oBrowser.Status, 1)
 			' 2xx response code is OK
 			Case 2
-				If InStr(oBrowser.ResponseText, "Your command requests were successfully submitted to") > 0
-				   Or InStr(oBrowser.ResponseText, "Your command request was successfully submitted to") > 0 Then
+				If InStr(oBrowser.ResponseText, "Your command requests were successfully submitted to") > 0 Or InStr(oBrowser.ResponseText, "Your command request was successfully submitted to") > 0 Then
 
 					' Save the id of the just scheduled downtime
 					If storeDowntimeIds = 1 Then
