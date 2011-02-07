@@ -358,23 +358,27 @@ Select Case mode
 		Select Case Left(oBrowser.Status, 1)
 			' 2xx response code is OK
 			Case 2
-				If InStr(oBrowser.ResponseText, "Your command requests were successfully submitted to") > 0 Then
+				If InStr(oBrowser.ResponseText, "Your command requests were successfully submitted to") > 0
+				   Or InStr(oBrowser.ResponseText, "Your command request was successfully submitted to") > 0 Then
+
 					' Save the id of the just scheduled downtime
 					If storeDowntimeIds = 1 Then
 						saveDowntimeId()
-
 						WScript.echo "OK: Downtime was submited successfully"
 						WScript.Quit(0)
-					ElseIf InStr(oBrowser.ResponseText, "Sorry, but you are not authorized to commit the specified command") > 0 Then
-						WScript.echo "ERROR: Maybe not authorized or wrong host- or servicename"
-						WScript.Quit(1)
-					ElseIf InStr(oBrowser.ResponseText, "Author was not entered") > 0 Then
-						WScript.echo "ERROR: No Author entered, define Author in nagiosUser var"
-						WScript.Quit(1)
 					Else
-						WScript.echo "ERROR: Some undefined error occured, turn debug mode on to view what happened"
+						WScript.echo "Downtime IDs are not set to be stored"
 						WScript.Quit(1)
 					End If
+				ElseIf InStr(oBrowser.ResponseText, "Sorry, but you are not authorized to commit the specified command") > 0 Then
+					WScript.echo "ERROR: Maybe not authorized or wrong host- or servicename"
+					WScript.Quit(1)
+				ElseIf InStr(oBrowser.ResponseText, "Author was not entered") > 0 Then
+					WScript.echo "ERROR: No Author entered, define Author in nagiosUser var"
+					WScript.Quit(1)
+				Else
+					WScript.echo "ERROR: Some undefined error occured, turn debug mode on to view what happened"
+					WScript.Quit(1)
 				End If
 			Case 3
 				WScript.echo "ERROR: HTTP Response code 3xx says ""moved url"" (" & oBrowser.Status & ")"
@@ -669,26 +673,8 @@ Sub deleteDowntime(nagiosDowntimeId)
 	Select Case Left(oBrowser.Status, 1)
 		' 2xx response code is OK
 		Case 2
-			If InStr(oBrowser.ResponseText, "Your command requests were successfully submitted to") > 0 Or InStr(oBrowser.ResponseText, "Your command request was successfully submitted to") > 0 Then
-				' Save the id of the just scheduled downtime
-				If storeDowntimeIds = 1 Then saveDowntimeId()
-					WScript.echo "OK: Downtime was submited successfully"
-					WScript.Quit(0)
-				Else
-					WScript.echo "Downtime IDs are not set to be stored"
-					WScript.Quit(1)
-				End If
-			ElseIf InStr(oBrowser.ResponseText, "Sorry, but you are not authorized to commit the specified command") > 0 Then
-				WScript.echo "ERROR: Maybe not authorized or wrong host- or servicename"
-				WScript.Quit(1)
-			ElseIf InStr(oBrowser.ResponseText, "Author was not entered") > 0 Then
-				WScript.echo "ERROR: No Author entered, define Author in nagiosUser var"
-				WScript.Quit(1)
-			Else
-				WScript.echo "ERROR: Some undefined error occured, turn debug mode on to view what happened"
-				WScript.Quit(1)
-			End If
-			If InStr(oBrowser.ResponseText, "Your command requests were successfully submitted to") > 0 Then
+			If InStr(oBrowser.ResponseText, "Your command requests were successfully submitted to") > 0
+			   Or InStr(oBrowser.ResponseText, "Your command request was successfully submitted to") > 0 Then
 				WScript.echo "OK: Downtime (ID: " & nagiosDowntimeId & ") has been deleted"
 			ElseIf InStr(oBrowser.ResponseText, "Sorry, but you are not authorized to commit the specified command") > 0 Then
 				WScript.echo "ERROR: Maybe not authorized or wrong host- or servicename"
