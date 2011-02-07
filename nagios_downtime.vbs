@@ -672,8 +672,7 @@ Sub deleteDowntime(nagiosDowntimeId)
 	Select Case Left(oBrowser.Status, 1)
 		' 2xx response code is OK
 		Case 2
-			If InStr(oBrowser.ResponseText, "Your command requests were successfully submitted to") > 0
-			   Or InStr(oBrowser.ResponseText, "Your command request was successfully submitted to") > 0 Then
+			If InStr(oBrowser.ResponseText, "Your command requests were successfully submitted to") > 0 Or InStr(oBrowser.ResponseText, "Your command request was successfully submitted to") > 0 Then
 				WScript.echo "OK: Downtime (ID: " & nagiosDowntimeId & ") has been deleted"
 			ElseIf InStr(oBrowser.ResponseText, "Sorry, but you are not authorized to commit the specified command") > 0 Then
 				WScript.echo "ERROR: Maybe not authorized or wrong host- or servicename"
