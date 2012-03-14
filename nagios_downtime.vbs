@@ -68,8 +68,6 @@
 '                     internal downtime ID savefile
 '                   - Added an additional "clean" mode
 '                   - Reindented code to 4 spaces for each level
-'
-' $Id$
 ' ##############################################################################
 
 Option Explicit
