@@ -68,6 +68,12 @@
 '                     internal downtime ID savefile
 '                   - Added an additional "clean" mode
 '                   - Reindented code to 4 spaces for each level
+' 2012-03-22 v0.8.4 Again thanks to Olaf Morgenstern for improving the script
+'                   - Added clean mode to some remarks and an error message
+'                   - Changed about() function to show "cscript WScript.ScriptName"
+'                   - Corrected indenting of one line
+'                   - In del mode, print more details if downtime could not be
+'                     found on nagios server
 ' ##############################################################################
 
 Option Explicit
@@ -141,7 +147,7 @@ evtlog = 0
 ' Default Debugmode: off => 0 or on => 1
 debug = 0
 ' Script version
-version = "0.8.3"
+version = "0.8.4"
 
 ' ##############################################################################
 ' Don't change anything below, except you know what you are doing.
@@ -254,7 +260,7 @@ If help = 1 Then
     WScript.Quit(1)
 End If
 
-' Mode can be add or del, default is "add"
+' Mode can be add, del or clean, default is "add"
 If mode = "" Then
     mode = "add"
 End If
@@ -375,7 +381,7 @@ Select Case mode
                     ' Save the id of the just scheduled downtime
                     If storeDowntimeIds = 1 Then
                         saveDowntimeId()
-                        log EVENTLOG_SUCCESS, "OK: Downtime was submited successfully"
+                        log EVENTLOG_SUCCESS, "OK: Downtime was submitted successfully"
                         WScript.Quit(0)
                     Else
                         log EVENTLOG_INFORMATION, "Downtime IDs are not set to be stored"
@@ -437,7 +443,8 @@ Select Case mode
                 ' because getNagiosDowntimeId(aDowntimes(0)) will exit the script if
                 ' it can't get the downtimes from the nagios server.
                 delDowntimeId(aDowntimes(0))
-                err "Unable to remove the downtime. Nagios downtime not found. Maybe already deleted? Or not scheduled yet?"
+                err "Unable to remove the downtime. Nagios downtime for internal id " & aDowntimes(0) & _
+                    " not found. Maybe already deleted or expired? Or not scheduled yet?"
             End If
         Else
             err "Unable to remove a downtime. No previously scheduled downtime found."
@@ -448,7 +455,7 @@ Select Case mode
         dbg "Cleanup mode selected."
         cleanupDowntimeIds
     Case Else
-        err "Unknown mode was set (Available: add, del)"
+        err "Unknown mode was set (Available: add, del, clean)"
         WScript.Quit(1)
 End Select
 
@@ -516,14 +523,14 @@ End Function
 
 Sub about()
         WScript.echo "Usage:" & vbcrlf & vbcrlf & _
-                     "  nagios_downtime [-m add] [-H <hostname>] [-s <service>] [-t <minutes>]" & vbcrlf & _
+                     "cscript  " & WScript.ScriptName & " [-m add] [-H <hostname>] [-s <service>] [-t <minutes>]" & vbcrlf & _
                      "                  [-S <webserver>] [-p <cgi-bin-path>] [-u <username>]" & vbcrlf & _
                      "                  [-p <password>] [-e] [-d]" & vbcrlf & _
-                     "  nagios_downtime -m del [-H <hostname>] [-s <service>] [-S <webserver>]" & vbcrlf & _
+                     "cscript  " & WScript.ScriptName & " -m del [-H <hostname>] [-s <service>] [-S <webserver>]" & vbcrlf & _
                      "                  [-p <cgi-bin-path>] [-u <username>] [-p <password>] [-e] [-d]" & vbcrlf & _
-                     "  nagios_downtime -m clean [-H <hostname>] [-s <service>] [-S <webserver>]" & vbcrlf & _
+                     "cscript  " & WScript.ScriptName & " -m clean [-H <hostname>] [-s <service>] [-S <webserver>]" & vbcrlf & _
                      "                  [-p <cgi-bin-path>] [-u <username>] [-p <password>] [-e] [-d]" & vbcrlf & _
-                     "  nagios_downtime -h" & vbcrlf & _
+                     "cscript  " & WScript.ScriptName & " -h" & vbcrlf & _
                      "" & vbcrlf & _
                      "Nagios Downtime Script by Lars Michelsen <lars@vertical-visions.de>" & vbcrlf & _
                      "Sends a HTTP(S) request to the nagios cgis to add a downtime for a host or" & vbcrlf & _
@@ -537,7 +544,7 @@ Sub about()
                      "                  Important: The name must be same as in Nagios." & vbcrlf & _
                      " -s, --service    Name of the service the downtime should be scheduled for." & vbcrlf & _
                      "                  Important: The name must be same as in Nagios. " & vbcrlf & _
-                     "                  When empty or not set a host downtime is being submited." & vbcrlf & _
+                     "                  When empty or not set a host downtime is being submitted." & vbcrlf & _
                      " -t, --downtime   Duration of the fixed downtime in minutes" & vbcrlf & _
                      " -c, --comment    Comment for the downtime" & vbcrlf & _
                      " " & vbcrlf & _
@@ -550,7 +557,7 @@ Sub about()
                      " -d, --debug      Enable debug mode" & vbcrlf & _
                      " -h, --help       Show this message" & vbcrlf & _
                      "" & vbcrlf & _
-                     "If you call nagios_downtime without parameters the script takes the default" & vbcrlf & _
+                     "If you call " & WScript.ScriptName & " without parameters the script takes the default" & vbcrlf & _
                      "options which are hardcoded in the script." & vbcrlf & _
                      ""
 End Sub
@@ -717,7 +724,7 @@ Sub deleteDowntime(nagiosDowntimeId)
     dbg "HTTP-Response (" & oBrowser.Status & "): " & oBrowser.ResponseText
 
     ' Handle response code, not in detail, only first char
-        ' Exit the script if we can't get the downtimes from the nagios server
+    ' Exit the script if we can't get the downtimes from the nagios server
     Select Case Left(oBrowser.Status, 1)
         ' 2xx response code is OK
         Case 2
