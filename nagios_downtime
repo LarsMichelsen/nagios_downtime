@@ -80,7 +80,8 @@ my $nagiosAuthName = "Nagios Access";
 # Nagios date format (same like set in value "date_format" in nagios.cfg)
 my $nagiosDateFormat = "us";
 # When you have to use a proxy server for access to the nagios server, set the
-# URL here. The proxy will be set for this script for the choosen web protocol
+# URL here (http://my.proxy.de | http://1.2.3.4:8080). The proxy will be set
+# for this script for the choosen web protocol.
 # When this is set to 'env', the proxy settings will be read from the env.
 my $proxyAddress = '';
 
