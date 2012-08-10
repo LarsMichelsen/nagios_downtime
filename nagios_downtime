@@ -2,7 +2,7 @@
 # ##############################################################################
 # nagios_downtime
 #
-# Copyright (c) 2007-2010 Lars Michelsen <lm@larsmichelsen.com>
+# Copyright (c) 2007-2012 Lars Michelsen <lm@larsmichelsen.com>
 # http://larsmichelsen.com
 #
 # Permission is hereby granted, free of charge, to any person
@@ -31,26 +31,34 @@
 # DECRIPTION:   Sends a HTTP(S)-GET to the nagios web server to
 #	              enter a downtime for a host or service.
 # CHANGES:
-# 2008-05-19 v0.4   - Some code formating
-#                   - The downtime type is now automaticaly detected on given params
-#                   - Changed case of the parameters
-#                   - Added proxy configuration options
-#                   - User Agent is now "nagios_downtime.pl / <version>"
-#                   - Added parameter -S and -p for setting server options via param
+# 2012-08-10 v0.7   Thanks to Arne Böttger for the following changes:
+#                   - Automatic port number calculation depending on choosen
+#                     web protocol (http -> 80, https -> 443). You can change
+#                     this if you need different ports.
+#                   - Moved downtime-id files from /tmp to /var/tmp to make them
+#                     available after reboot. If you have downtime-id files on your
+#                     host you need to move them to the new destination.
+#                   - Added new parameter --window to define a non-fixed downtime
+#                     by providing the number of minutes as value for this option.
+# 2010-06-20 v0.6.1 - Fixed env_proxy calls to LWP object
+#                   - Explicitly unsetting env_proxy when no proxy set
+#                   - Checking for Crypt::SSLeay module to load when https
+#                     url given
+# 2010-04-05 v0.6   - Chomping newlines from stored downtimes now
+# 2009-11-30 v0.5.1 - Fixed service downtime deletion
 # 2009-10-13 v0.5   - Added new "run modes": add (default) and del to schedule
 #                     or remove downtimes
 #                   - Using the del mode the last scheduled downtime will be removed
 #                   - Added the params -u and -P for giving the username and password
 #                     for accessing the CGIs by the command line
 #                   - Several code cleanups
-# 2009-11-30 v0.5.1 - Fixed service downtime deletion
-# 2010-04-05 v0.6   - Chomping newlines from stored downtimes now
-# 2010-06-20 v0.6.1 - Fixed env_proxy calls to LWP object
-#                   - Explicitly unsetting env_proxy when no proxy set
-#                   - Checking for Crypt::SSLeay module to load when https
-#                     url given
+# 2008-05-19 v0.4   - Some code formating
+#                   - The downtime type is now automaticaly detected on given params
+#                   - Changed case of the parameters
+#                   - Added proxy configuration options
+#                   - User Agent is now "nagios_downtime.pl / <version>"
+#                   - Added parameter -S and -p for setting server options via param
 #
-# $Id$
 # ##############################################################################
 
 # ##############################################################################
@@ -66,7 +74,7 @@ my $nagiosServer = "localhost";
 my $nagiosWebServer = "";
 # Port of Nagios webserver (If $nagiosWebProto is set to https, this should be
 # SSL Port 443)
-my $nagiosWebPort = 80;
+my $nagiosWebPort = ($nagiosWebProto eq "http" ) ? 80 : 443;
 # Web path to Nagios cgi-bin (example: /nagios/cgi-bin) (NO trailing slash!)
 my $nagiosCgiPath = "/nagios/cgi-bin";
 # User to take for authentication and author to enter the downtime (example:
@@ -92,7 +100,7 @@ my $storeDowntimeIds = 1;
 # <host>-<service>.txt). The files will contain the script internal
 # downtime ids and/or the nagios downtime ids.
 # These files are needed for later downtime removal
-my $downtimePath = '/tmp';
+my $downtimePath = '/var/tmp';
 
 # Some default options (Usualy no changes needed below this)
 
@@ -103,12 +111,16 @@ my $downtimeId = time;
 my $downtimeType = 1;
 # Default Downtime duration in minutes
 my $downtimeDuration = 10;
+# Default Downtime window in minutes is zero, meaning downtime is fixed
+my $downtimeWindow = 0;
+# Is downtime fixed?
+my $fixed = 1;
 # Default Downtime text
 my $downtimeComment = "Perl Downtime-Script";
 # Default Debugmode: off => 0 or on => 1
 my $debug = 0;
 # Script version
-my $version = "0.6";
+my $version = "0.7";
 
 # ##############################################################################
 # Don't change anything below, except you know what you are doing.
@@ -148,6 +160,7 @@ GetOptions(
 	"u|user=s" => \$nagiosUser,
 	"P|password=s" => \$nagiosUserPw,
 	"t|downtime=i" => \$downtimeDuration,
+	"w|window=i" => \$downtimeWindow,
 	"c|comment=s" => \$downtimeComment,
 	"s|service=s" => \$service);
 
@@ -196,7 +209,12 @@ if($storeDowntimeIds == 1) {
 $start = gettime($now);
  
 # Calculate the end of the downtime
-$end = gettime($now+$downtimeDuration*60);
+if ($downtimeWindow) {
+	$end = gettime($now+$downtimeWindow*60);
+	$fixed = 0;
+} else {
+	$end = gettime($now+$downtimeDuration*60);
+}
  
 # Check if Nagios web server is reachable via ping, if not, terminate the script
 $p = Net::Ping->new();
@@ -236,16 +254,20 @@ switch($mode) {
 				"&host=" . $hostname .
 				"&com_author=" . $nagiosUser . "&com_data=" . $downtimeComment .
 				"&trigger=0&start_time=" . $start . "&end_time=" . $end .
-				"&fixed=1&childoptions=1&btnSubmit=Commit";
+				"&fixed=$fixed&childoptions=1&btnSubmit=Commit";
 		} else {
 			# Schedule Service Downtime
 			$url = $nagiosWebProto . "://" . $nagiosWebServer . ":" . $nagiosWebPort . $nagiosCgiPath . "/cmd.cgi?cmd_typ=56&cmd_mod=2" .
 				"&host=" . $hostname . "&service=" . $service .
 				"&com_author=" . $nagiosUser . "&com_data=" . $downtimeComment .
 				"&trigger=0&start_time=" . $start . "&end_time=" . $end .
-				"&fixed=1&btnSubmit=Commit";
+				"&fixed=$fixed&btnSubmit=Commit";
 		}
 		
+		if ($downtimeWindow) {
+			$url .= '&minutes=' . $downtimeDuration;
+		} 
+
 		if($debug == 1) {
 			print "HTTP-GET: " . $url;
 		}
@@ -599,6 +621,7 @@ Parameters:
                   When empty or not set a host downtime is being submited.
  -t, --downtime   Duration of the fixed downtime in minutes
  -c, --comment    Comment for the downtime
+ -w, --window     Downtime Window for flexible downtimes, in minutes
  
  -S, --server     Nagios Webserver address (IP or DNS)
  -p, --path       Web path to Nagios cgi-bin (Default: /nagios/cgi-bin)
