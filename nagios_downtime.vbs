@@ -74,12 +74,15 @@
 '                   - Corrected indenting of one line
 '                   - In del mode, print more details if downtime could not be
 '                     found on nagios server
+' 2012-12-05 v0.9   - Added support for scheduling downtimes via the JSON API of
+'                     Check_MK Multisite
+'                   - Internal recode of variables
 ' ##############################################################################
 
 Option Explicit
 
-Dim nagiosWebProto, nagiosServer, nagiosWebServer, nagiosWebPort, nagiosCgiPath
-Dim nagiosUser, nagiosUserPw, nagiosAuthName, nagiosDateFormat, proxyAddress
+Dim ty, webProto, server, webServer, webPort, basePath
+Dim user, userPw, authName, nagiosDateFormat, proxyAddress
 Dim storeDowntimeIds, downtimePath, downtimeId, downtimeType, downtimeDuration
 Dim downtimeComment, debug, version, ignoreCertProblems, evtlog
 
@@ -87,30 +90,42 @@ Dim downtimeComment, debug, version, ignoreCertProblems, evtlog
 ' Configuration (-> Here you have to set some values!)
 ' ##############################################################################
 
+' Interface/API to use to set downtimes. Can be set to "nagios" to use the
+' default CGI based webinterface or "multisite" to set downtimes via Check_MK
+' Multisite
+ty = "nagios"
+
 ' Protocol for the GET Request, In most cases "http", "https" is also possible
-nagiosWebProto = "http"
+webProto = "http"
 ' IP or FQDN of Nagios server (example: nagios.domain.de)
-nagiosServer = "localhost"
-' IP or FQDN of Nagios web server. In most cases same as $nagiosServer, if
-' empty automaticaly using $nagiosServer
-nagiosWebServer = ""
+server = "localhost"
+' IP or FQDN of Nagios web server. In most cases same as $server, if
+' empty automaticaly using $server
+webServer = ""
 ' Port of Nagios webserver
 ' This option is only being recognized when it is not the default port for the
-' choosen protocol in "nagiosWebProto" option
-nagiosWebPort = 80
+' choosen protocol in "webProto" option
+webPort = 80
 ' Web path to Nagios cgi-bin (example: /nagios/cgi-bin) (NO trailing slash!)
 ' In case of Icinga this would be "/icinga/cgi-bin" by default
-nagiosCgiPath = "/nagios/cgi-bin"
+basePath = "/nagios/cgi-bin"
+
 ' User to take for authentication and author to enter the downtime (example:
 ' nagiosadmin). In case of Icinga this would be "icingaadmin" by default
-nagiosUser = "nagiosadmin"
+user = "nagiosadmin"
 ' Password for above user
-nagiosUserPw = "nagiosadmin"
+userPw = "nagiosadmin"
 ' Name of authentication realm, set in the Nagios .htaccess file
 ' (example: "Nagios Access")
-nagiosAuthName = "Nagios Access"
+authName = "Nagios Access"
+
+'
+' Nagios CGI specific options
+' (only needed when $ty is set to "nagios")
+'
 ' Nagios date format (same like set in value "date_format" in nagios.cfg)
 nagiosDateFormat = "us"
+
 ' When you have to use a proxy server for access to the nagios server, set the
 ' URL here. The proxy will be set for this script for the choosen web protocol
 ' When this is set to 'env', the proxy settings will be read from IE settings
@@ -147,14 +162,14 @@ evtlog = 0
 ' Default Debugmode: off => 0 or on => 1
 debug = 0
 ' Script version
-version = "0.8.4"
+version = "0.9"
 
 ' ##############################################################################
 ' Don't change anything below, except you know what you are doing.
 ' ##############################################################################
 
 Dim arg, p, i, oBrowser, oResponse, hostname, service, timeStart, timeEnd, url
-Dim help, timeNow, timezone, mode, oFs, oFile, oNetwork, oShell
+Dim help, timeNow, timezone, mode, oFs, oFile, oNetwork, oShell, baseUrl, params
 
 Const HTTPREQUEST_PROXYSETTING_PRECONFIG = 0
 Const HTTPREQUEST_PROXYSETTING_DIRECT    = 1
@@ -185,6 +200,53 @@ timezone = "local"
 mode = "add"
 help = 0
 
+Dim urls
+Set urls = CreateObject("Scripting.Dictionary")
+urls.Add "nagios", CreateObject("Scripting.Dictionary")
+urls.Item("nagios").Add "host_downtime", "[baseUrl]/cmd.cgi?cmd_typ=55&cmd_mod=2" & _
+						"&host=[hostname]&com_author=[user]&com_data=[comment]" & _
+						"&trigger=0&start_time=[start_time]&end_time=[end_time]"  & _
+						"&fixed=1&childoptions=1&btnSubmit=Commit"
+urls.Item("nagios").Add "service_downtime", "[baseUrl]/cmd.cgi?cmd_typ=56&cmd_mod=2" & _
+                                               "&host=[hostname]&service=[service]" & _
+                                               "&com_author=[user]&com_data=[comment]" & _
+                                               "&trigger=0&start_time=[start_time]&end_time=[end_time]" & _
+                                               "&fixed=1&btnSubmit=Commit"
+urls.Item("nagios").Add "del_host_downtime", "[baseUrl]/cmd.cgi?cmd_typ=78&cmd_mod=2&down_id=[downtime_id]&btnSubmit=Commit"
+urls.Item("nagios").Add "del_service_downtime", "[baseUrl]/cmd.cgi?cmd_typ=79&cmd_mod=2&down_id=[downtime_id]&btnSubmit=Commit"
+urls.Item("nagios").Add "all_downtimes", "[baseUrl]/extinfo.cgi?type=6"
+
+urls.Add "multisite", CreateObject("Scripting.Dictionary")
+urls.Item("multisite").Add "host_downtime", "[baseUrl]/view.py?output_format=json&_transid=-1&" & _
+                           "_do_confirm=yes&_do_actions=yes&_username=[user]&_secret=[password]&" & _
+						   "view_name=hoststatus&host=[hostname]&_down_comment=[comment]&" & _
+						   "_down_from_now=yes&_down_minutes=[duration]"
+urls.Item("multisite").Add "service_downtime", "[baseUrl]/view.py?output_format=json&_transid=-1&" & _
+                           "_do_confirm=yes&_do_actions=yes&_username=[user]&_secret=[password]&" & _
+						   "view_name=service&host=[hostname]&service=[service]&" & _
+						   "_down_comment=[comment]&_down_from_now=yes&_down_minutes=[duration]"
+urls.Item("multisite").Add "del_host_downtime", "[baseUrl]/view.py?output_format=json&_transid=-1" & _
+                           "&_do_confirm=yes&_do_actions=yes&_username=[user]&_secret=[password]" & _
+						   "&view_name=downtimes&_remove_downtimes=Remove&host=[hostname]&service=[service]"
+urls.Item("multisite").Add "del_service_downtime", "[baseUrl]/view.py?output_format=json&_transid=-1" & _
+                           "&_do_confirm=yes&_do_actions=yes&_username=[user]&_secret=[password]" & _
+						   "&view_name=downtimes&_remove_downtimes=Remove&host=[hostname]&service=[service]"
+urls.Item("multisite").Add "all_downtimes", "[baseUrl]/view.py?output_format=json&_transid=-1" & _
+                           "&_do_confirm=yes&_do_actions=yes&_username=[user]&_secret=[password]" & _
+						   "&view_name=downtimes"
+
+Dim messages
+Set messages = CreateObject("Scripting.Dictionary")
+messages.Add "nagios", CreateObject("Scripting.Dictionary")
+messages.Item("nagios").Add "success", "Your command request was successfully submitted to Nagios for processing"
+messages.Item("nagios").Add "not_authorized", "Sorry, but you are not authorized to commit the specified command."
+messages.Item("nagios").Add "no_author", "Author was not entered"
+
+messages.Add "multisite", CreateObject("Scripting.Dictionary")
+messages.Item("multisite").Add "success", "Successfully sent 1 commands"
+messages.Item("multisite").Add "not_authorized", "Invalid automation secret"
+messages.Item("multisite").Add "no_author", "TODO"
+						   
 ' Read all params
 i = 0
 Do While i < Wscript.Arguments.Count
@@ -197,6 +259,12 @@ Do While i < Wscript.Arguments.Count
         Else
             err "No hostname given"
         End If
+    ElseIf WScript.Arguments(i) = "/i" or WScript.Arguments(i) = "-i" or UCase(WScript.Arguments(i) = "-INTERFACE") or UCase(WScript.Arguments(i)) = "/INTERFACE" then
+        ' Type: /i, /interface, -i, -interface
+        i = i + 1
+
+        ty = WScript.Arguments(i)
+
     ElseIf WScript.Arguments(i) = "/m" or WScript.Arguments(i) = "-m" or UCase(WScript.Arguments(i) = "-MODE") or UCase(WScript.Arguments(i)) = "/MODE" then
         ' Mode: /m, /mode, -m, -mode
         i = i + 1
@@ -206,22 +274,22 @@ Do While i < Wscript.Arguments.Count
         ' Nagios Server: /S, /server, -S, -server
         i = i + 1
 
-        nagiosServer = WScript.Arguments(i)
+        server = WScript.Arguments(i)
     ElseIf WScript.Arguments(i) = "/p" or WScript.Arguments(i) = "-p" or UCase(WScript.Arguments(i)) = "/PATH" or UCase(WScript.Arguments(i)) = "-PATH" then
         ' Nagios CGI Path: /p, /path, -p, -path
         i = i + 1
 
-        nagiosCgiPath = WScript.Arguments(i)
+        basePath = WScript.Arguments(i)
     ElseIf WScript.Arguments(i) = "/u" or WScript.Arguments(i) = "-u" or UCase(WScript.Arguments(i)) = "/USER" or UCase(WScript.Arguments(i)) = "-USER" then
         ' Nagios User: /u, /user, -u, -user
         i = i + 1
 
-        nagiosUser = WScript.Arguments(i)
+        user = WScript.Arguments(i)
     ElseIf WScript.Arguments(i) = "/P" or WScript.Arguments(i) = "-P" or UCase(WScript.Arguments(i)) = "/PASSWORD" or UCase(WScript.Arguments(i)) = "-PASSWORD" then
         ' Nagios Password: /P, /password, -P, -password
         i = i + 1
 
-        nagiosUserPw = WScript.Arguments(i)
+        userPw = WScript.Arguments(i)
     ElseIf WScript.Arguments(i) = "/s" or WScript.Arguments(i) = "-s" or UCase(WScript.Arguments(i)) = "/SERVICE" or UCase(WScript.Arguments(i)) = "-SERVICE" then
         ' Servicename: /s, /service, -s, -service
         i = i + 1
@@ -255,6 +323,11 @@ Do While i < Wscript.Arguments.Count
     i = i + 1
 Loop
 
+' Read optional config
+If oFS.FileExists("nagios_downtime.vbs.conf") Then
+    ExecuteGlobal(oFS.OpenTextFile("nagios_downtime.vbs.conf").ReadAll())
+End If
+
 If help = 1 Then
     Call about()
     WScript.Quit(1)
@@ -274,8 +347,8 @@ End If
 
 ' When no nagios webserver is set the webserver and Nagios should be on the same
 ' host
-If nagiosWebServer = "" Then
-    nagiosWebServer = nagiosServer
+If webServer = "" Then
+    webServer = server
 End If
 
 ' When a service name is set, this will be a service downtime
@@ -285,12 +358,12 @@ End If
 
 ' Initialize the port to be added to the url. If default http port (80) or
 ' default ssl port don't add anything
-If nagiosWebProto = "http" And nagiosWebPort = 80 Then
-    nagiosWebPort = ""
-ElseIf nagiosWebProto = "https" And nagiosWebPort <> 443 Then
-    nagiosWebPort = ""
+If webProto = "http" And webPort = 80 Then
+    webPort = ""
+ElseIf webProto = "https" And webPort <> 443 Then
+    webPort = ""
 Else
-    nagiosWebPort = ":" & nagiosWebPort
+    webPort = ":" & webPort
 End If
 
 ' Append the script internal downtime id when id storing is enabled
@@ -313,8 +386,8 @@ timeStart = gettime(timeNow)
 timeEnd = gettime(DateAdd("n", downtimeDuration, timeNow))
 
 ' Check if Nagios web server is reachable via ping, if not, terminate the script
-If PingTest(nagiosWebServer) Then
-    err "Given Nagios web server """ & nagiosWebServer & """ not reachable via ping!"
+If PingTest(webServer) Then
+    err "Given Nagios web server """ & webServer & """ not reachable via ping!"
 End If
 
 ' Initialize the browser
@@ -339,29 +412,30 @@ If ignoreCertProblems = 1 Then
     oBrowser.Option(HTTPREQUEST_SSLERROR_IGNORE_FLAG) = HTTPREQUEST_SECURITY_IGNORE_ALL
 End If
 
+baseUrl = webProto & "://" & webServer & webPort & basePath 
 
 ' Handle the given action
 Select Case mode
     Case "add"
         ' Add a new scheduled downtime
         ' ##########################################################################
-
+        Set params = CreateObject("Scripting.Dictionary")
+		params.add "baseUrl", baseUrl
+		params.add "hostname", hostname
+		params.add "user", user
+		params.add "password", userPw
+		params.add "comment", downtimeComment
+		params.add "start_time", timeStart
+		params.add "end_time", timeEnd
+		params.add "duration", downtimeDuration
+		
         If downtimeType = 1 Then
             ' Schedule Host Downtime
-            url = nagiosWebProto & "://" & nagiosWebServer & nagiosWebPort & _
-                  nagiosCgiPath & "/cmd.cgi?cmd_typ=55&cmd_mod=2" & _
-                  "&host=" & hostname & _
-                  "&com_author=" & nagiosUser & "&com_data=" & downtimeComment & _
-                  "&trigger=0&start_time=" & timeStart & "&end_time=" & timeEnd & _
-                  "&fixed=1&childoptions=1&btnSubmit=Commit"
+            url = get_url("host_downtime", params)
         Else
             ' Schedule Service Downtime
-            url = nagiosWebProto & "://" & nagiosWebServer & nagiosWebPort & _
-                  nagiosCgiPath & "/cmd.cgi?cmd_typ=56&cmd_mod=2" & _
-                  "&host=" & hostname & "&service=" & service & _
-                  "&com_author=" & nagiosUser & "&com_data=" & downtimeComment & _
-                  "&trigger=0&start_time=" & timeStart & "&end_time=" & timeEnd & _
-                  "&fixed=1&btnSubmit=Commit"
+		    params.add "service", service
+            url = get_url("service_downtime", params)
         End If
 
         dbg "HTTP-GET: " & url
@@ -376,7 +450,7 @@ Select Case mode
         Select Case Left(oBrowser.Status, 1)
             ' 2xx response code is OK
             Case 2
-                If InStr(oBrowser.ResponseText, "Your command requests were successfully submitted to") > 0 Or InStr(oBrowser.ResponseText, "Your command request was successfully submitted to") > 0 Then
+                If InStr(oBrowser.ResponseText, get_msg("success")) > 0 Then
 
                     ' Save the id of the just scheduled downtime
                     If storeDowntimeIds = 1 Then
@@ -387,11 +461,11 @@ Select Case mode
                         log EVENTLOG_INFORMATION, "Downtime IDs are not set to be stored"
                         WScript.Quit(1)
                     End If
-                ElseIf InStr(oBrowser.ResponseText, "Sorry, but you are not authorized to commit the specified command") > 0 Then
+                ElseIf InStr(oBrowser.ResponseText, get_msg("not_authorized")) > 0 Then
                     err "Maybe not authorized or wrong host- or servicename"
 
-                ElseIf InStr(oBrowser.ResponseText, "Author was not entered") > 0 Then
-                    err "No Author entered, define Author in nagiosUser var"
+                ElseIf InStr(oBrowser.ResponseText, get_msg("no_author")) > 0 Then
+                    err "No Author entered, define Author in user var"
 
                 Else
                     err "Some undefined error occured, turn debug mode on to view what happened"
@@ -495,16 +569,29 @@ Sub setBrowserOptions()
     dbg "User-Agent: " & "nagios_downtime.vbs / " & version
 
     ' Only try to auth if auth informations are given
-    If nagiosAuthName <> "" And nagiosUserPw <> "" Then
+    If authName <> "" And userPw <> "" Then
 
-        dbg "Nagios Auth: Server auth"
-        dbg "Nagios User: " & nagiosUser
-        dbg "Nagios Password: " & nagiosUserPw
+        dbg "Nagios Auth: " & authName
+        dbg "Nagios User: " & user
+        dbg "Nagios Password: " & userPw
 
         ' Set the login information (0: Server auth / 1: Proxy auth)
-        oBrowser.SetCredentials nagiosUser, nagiosUserPw, 0
+        oBrowser.SetCredentials user, userPw, 0
     End If
 End Sub
+
+Function get_url(key, params)
+    url = urls.Item(ty).Item(key)
+	Dim k
+	For Each k In params.Keys
+        url = Replace(url, "[" & k & "]", params.Item(k))
+	Next
+    get_url = url
+End Function
+
+Function get_msg(key)
+    get_msg = messages.Item(ty).Item(key)
+End Function
 
 Function bubblesort(arrSort)
     Dim i, j, arrTemp
@@ -523,12 +610,12 @@ End Function
 
 Sub about()
         WScript.echo "Usage:" & vbcrlf & vbcrlf & _
-                     "cscript  " & WScript.ScriptName & " [-m add] [-H <hostname>] [-s <service>] [-t <minutes>]" & vbcrlf & _
+                     "cscript  " & WScript.ScriptName & " [-i <interface>] [-m add] [-H <hostname>] [-s <service>] [-t <minutes>]" & vbcrlf & _
                      "                  [-S <webserver>] [-p <cgi-bin-path>] [-u <username>]" & vbcrlf & _
                      "                  [-p <password>] [-e] [-d]" & vbcrlf & _
-                     "cscript  " & WScript.ScriptName & " -m del [-H <hostname>] [-s <service>] [-S <webserver>]" & vbcrlf & _
+                     "cscript  " & WScript.ScriptName & " -m del [-i <interface>] [-H <hostname>] [-s <service>] [-S <webserver>]" & vbcrlf & _
                      "                  [-p <cgi-bin-path>] [-u <username>] [-p <password>] [-e] [-d]" & vbcrlf & _
-                     "cscript  " & WScript.ScriptName & " -m clean [-H <hostname>] [-s <service>] [-S <webserver>]" & vbcrlf & _
+                     "cscript  " & WScript.ScriptName & " -m clean [-i <interface>] [-H <hostname>] [-s <service>] [-S <webserver>]" & vbcrlf & _
                      "                  [-p <cgi-bin-path>] [-u <username>] [-p <password>] [-e] [-d]" & vbcrlf & _
                      "cscript  " & WScript.ScriptName & " -h" & vbcrlf & _
                      "" & vbcrlf & _
@@ -538,6 +625,8 @@ Sub about()
                      "called in ""del"" mode." & vbcrlf & _
                      "" & vbcrlf & _
                      "Parameters:" & vbcrlf & _
+                     " -i, --interface  Type of interface to be used to set downtimes (nagios or" & vbcrlf & _
+                     "                  multisite). Defaults to nagios." & vbcrlf & _
                      " -m, --mode       Mode to run the script in (Available: add, del, clean)" & vbcrlf & _
                      "" & vbcrlf & _
                      " -H, --hostname   Name of the host the downtime should be scheduled for." & vbcrlf & _
@@ -706,13 +795,19 @@ Sub deleteDowntime(nagiosDowntimeId)
     If nagiosDowntimeId = "" Then
         err "Unable to delete downtime. Nagios Downtime ID not given"
     End If
+	
+	Set params = CreateObject("Scripting.Dictionary")
+	params.add "baseUrl", baseUrl
+	params.add "user", user
+	params.add "password", userPw
+	params.add "downtime_id", nagiosDowntimeId
 
     If downtimeType = 1 Then
         ' Host downtime
-        url = nagiosWebProto & "://" & nagiosWebServer & nagiosWebPort & nagiosCgiPath & "/cmd.cgi?cmd_typ=78&cmd_mod=2&down_id=" & nagiosDowntimeId & "&btnSubmit=Commit"
+        url = get_url("del_host_downtime", params)
     Else
         ' Service downtime
-        url = nagiosWebProto & "://" & nagiosWebServer & nagiosWebPort & nagiosCgiPath & "/cmd.cgi?cmd_typ=79&cmd_mod=2&down_id=" & nagiosDowntimeId & "&btnSubmit=Commit"
+        url = get_url("del_service_downtime", params)
     End If
 
     dbg "HTTP-GET: " & url
@@ -728,13 +823,13 @@ Sub deleteDowntime(nagiosDowntimeId)
     Select Case Left(oBrowser.Status, 1)
         ' 2xx response code is OK
         Case 2
-            If InStr(oBrowser.ResponseText, "Your command requests were successfully submitted to") > 0 Or InStr(oBrowser.ResponseText, "Your command request was successfully submitted to") > 0 Then
+            If InStr(oBrowser.ResponseText, get_msg("success")) > 0 Then
                 log EVENTLOG_SUCCESS, "OK: Downtime (ID: " & nagiosDowntimeId & ") has been deleted"
-            ElseIf InStr(oBrowser.ResponseText, "Sorry, but you are not authorized to commit the specified command") > 0 Then
+            ElseIf InStr(oBrowser.ResponseText, get_msg("not_authorized")) > 0 Then
                 err "Maybe not authorized or wrong host- or servicename"
 
-            ElseIf InStr(oBrowser.ResponseText, "Author was not entered") > 0 Then
-                err "No Author entered, define Author in nagiosUser var"
+            ElseIf InStr(oBrowser.ResponseText, get_msg("no_author")) > 0 Then
+                err "No Author entered, define Author in user var"
 
             Else
                 err "Some undefined error occured, turn debug mode on to view what happened"
@@ -759,12 +854,14 @@ Function getAllDowntimes()
     aDowntimes = Array()
 
     ' Url to downtime page
-    url = nagiosWebProto & "://" & nagiosWebServer & nagiosWebPort & nagiosCgiPath & "/extinfo.cgi?type=6"
+	Set params = CreateObject("Scripting.Dictionary")
+	params.add "baseUrl", baseUrl
+    url = get_url("all_downtimes", params)
 
     dbg "HTTP-GET: " & url
 
     ' Fetch information via HTTP-GET
-        oBrowser.Open "GET", url
+    oBrowser.Open "GET", url
     setBrowserOptions()
     oBrowser.Send
 
@@ -902,7 +999,7 @@ Function getAllDowntimes()
 End Function
 
 ' Funktion zum Test, ob ein Rechner per Ping erreichbar ist
-' Ãœbergabeparameter: IP oder Hostname
+' Übergabeparameter: IP oder Hostname
 Function PingTest(strHostOrIP)
     Dim strCommand, objSh
     Set objSh = CreateObject("WScript.Shell")

@@ -1,6 +1,6 @@
 ###############################################################################
-# nagios_downtime 0.6
-# 2010-04-05 Lars Michelsen <lars@vertical-visions.de>
+# nagios_downtime 0.7
+# 2012-12-06 Lars Michelsen <lars@vertical-visions.de>
 ###############################################################################
 
 ###############################################################################
@@ -26,11 +26,11 @@ Scheduling downtimes for planned downtimes gives you several advantages:
 
 - Perl
 - Perl Modules:
-	- LWP
-	- Switch
-	- Net::Ping
-	- Sys::Hostname
-	- Getopt::Long
+  - LWP
+  - Switch
+  - Net::Ping
+  - Sys::Hostname
+  - Getopt::Long
 
 ###############################################################################
 # Usage
@@ -100,9 +100,9 @@ scheduled downtimes can be deleted by calling nagios_downtime in deletion mode
 ###############################################################################
 # Bugs and Support
 
-Please use the Nagios Portal (www.nagios-portal.org) in case of problems, bugs
-and/or other comments. Even though it is a german board, english posts are 
-welcome.
+Please use the Monitoring Portal (www.monitoring-portal.org) in case of
+problems, bugs and/or other comments. Even though it is a german board, english
+posts are welcome.
 
 ###############################################################################
 # Thanks
