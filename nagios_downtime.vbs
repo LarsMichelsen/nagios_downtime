@@ -227,13 +227,13 @@ urls.Item("multisite").Add "service_downtime", "[baseUrl]/view.py?output_format=
 						   "_down_comment=[comment]&_down_from_now=yes&_down_minutes=[duration]"
 urls.Item("multisite").Add "del_host_downtime", "[baseUrl]/view.py?output_format=json&_transid=-1" & _
                            "&_do_confirm=yes&_do_actions=yes&_username=[user]&_secret=[password]" & _
-						   "&view_name=downtimes&_remove_downtimes=Remove&host=[hostname]&service=[service]"
+						   "&view_name=api_downtimes&_remove_downtimes=Remove&downtime_id=[downtime_id]"
 urls.Item("multisite").Add "del_service_downtime", "[baseUrl]/view.py?output_format=json&_transid=-1" & _
                            "&_do_confirm=yes&_do_actions=yes&_username=[user]&_secret=[password]" & _
-						   "&view_name=downtimes&_remove_downtimes=Remove&host=[hostname]&service=[service]"
+						   "&view_name=api_downtimes&_remove_downtimes=Remove&downtime_id=[downtime_id]"
 urls.Item("multisite").Add "all_downtimes", "[baseUrl]/view.py?output_format=json&_transid=-1" & _
                            "&_do_confirm=yes&_do_actions=yes&_username=[user]&_secret=[password]" & _
-						   "&view_name=downtimes"
+						   "&view_name=api_downtimes"
 
 Dim messages
 Set messages = CreateObject("Scripting.Dictionary")
@@ -507,19 +507,12 @@ Select Case mode
 
             If nagiosDowntimeId <> "" Then
                 deleteDowntime(nagiosDowntimeId)
-
-                ' Delete internal downtime id from downtime file
-                ' This only gets executed on successfull deleteDowntime() cause the
-                ' function terminates the script on any problem
-                delDowntimeId(aDowntimes(0))
-            Else
-                ' We can safely delete the downtime from the list of saved downtimes,
-                ' because getNagiosDowntimeId(aDowntimes(0)) will exit the script if
-                ' it can't get the downtimes from the nagios server.
-                delDowntimeId(aDowntimes(0))
-                err "Unable to remove the downtime. Nagios downtime for internal id " & aDowntimes(0) & _
-                    " not found. Maybe already deleted or expired? Or not scheduled yet?"
             End If
+
+            ' We can safely delete the downtime from the list of saved downtimes,
+            ' because getNagiosDowntimeId(aDowntimes(0)) will exit the script if
+            ' it can't get the downtimes from the nagios server.
+            delDowntimeId(aDowntimes(0))
         Else
             err "Unable to remove a downtime. No previously scheduled downtime found."
         End If
@@ -582,10 +575,10 @@ End Sub
 
 Function get_url(key, params)
     url = urls.Item(ty).Item(key)
-	Dim k
-	For Each k In params.Keys
+    Dim k
+    For Each k In params.Keys
         url = Replace(url, "[" & k & "]", params.Item(k))
-	Next
+    Next
     get_url = url
 End Function
 
@@ -796,11 +789,11 @@ Sub deleteDowntime(nagiosDowntimeId)
         err "Unable to delete downtime. Nagios Downtime ID not given"
     End If
 	
-	Set params = CreateObject("Scripting.Dictionary")
-	params.add "baseUrl", baseUrl
-	params.add "user", user
-	params.add "password", userPw
-	params.add "downtime_id", nagiosDowntimeId
+    Set params = CreateObject("Scripting.Dictionary")
+    params.add "baseUrl", baseUrl
+    params.add "user", user
+    params.add "password", userPw
+    params.add "downtime_id", nagiosDowntimeId
 
     If downtimeType = 1 Then
         ' Host downtime
@@ -854,8 +847,10 @@ Function getAllDowntimes()
     aDowntimes = Array()
 
     ' Url to downtime page
-	Set params = CreateObject("Scripting.Dictionary")
-	params.add "baseUrl", baseUrl
+    Set params = CreateObject("Scripting.Dictionary")
+    params.add "baseUrl", baseUrl
+    params.add "user", user
+    params.add "password", userPw
     url = get_url("all_downtimes", params)
 
     dbg "HTTP-GET: " & url
@@ -884,118 +879,186 @@ Function getAllDowntimes()
             err "HTTP Response code unhandled by script (" & oBrowser.Status & ")"
     End Select
 
-    Set oRegex = New RegExp
-    oRegex.IgnoreCase = True
+    If ty = "nagios" Then
+        Set oRegex = New RegExp
+        oRegex.IgnoreCase = True
 
-    ' Parse all downtimes to an array
-    Dim lineType, sLine
-    lineType = ""
-    ' Removed vbCrLf here
-    For Each sLine In Split(oBrowser.ResponseText, vblf)
-        ' Filter only downtime lines
-        oRegex.Pattern = "CLASS=\'downtime(Odd|Even)"
-        Set oMatches = oRegex.Execute(sLine)
-
-        If oMatches.Count > 0 Then
-            lineType = "downtime" & oMatches(0).SubMatches(0)
-
-            oRegex.Pattern = "<tr\sCLASS=\'" & lineType & "\'><td\sCLASS=\'" & lineType & _
-                             "\'><A\sHREF=\'extinfo\.cgi\?type=1&host=([^\']+)\'>[^<]+<\/A>" & _
-                             "<\/td><td\sCLASS=\'" & lineType & "\'>([^<]+)<\/td><td\sCLASS=\'" & _
-                             lineType & "\'>([^<]+)<\/td><td\sCLASS=\'" & lineType & "\'>([^<]+)" & _
-                             "<\/td><td\sCLASS=\'" & lineType & "\'>([^<]+)<\/td><td\sCLASS=\'" & _
-                             lineType & "\'>([^<]+)<\/td><td\sCLASS=\'" & lineType & "\'>([^<]+)" & _
-                             "<\/td><td\sCLASS=\'" & lineType & "\'>([^<]+)<\/td><td\sCLASS=\'" & _
-                             lineType & "\'>([^<]+)<\/td><td\sCLASS=\'" & lineType & "\'>([^<]+)<\/td>"
+        ' Parse all downtimes to an array
+        Dim lineType, sLine
+        lineType = ""
+        ' Removed vbCrLf here
+        For Each sLine In Split(oBrowser.ResponseText, vblf)
+            ' Filter only downtime lines
+            oRegex.Pattern = "CLASS=\'downtime(Odd|Even)"
             Set oMatches = oRegex.Execute(sLine)
 
             If oMatches.Count > 0 Then
-                ' Host downtime:
-                ' <tr CLASS='downtimeEven'><td CLASS='downtimeEven'><A HREF='extinfo.cgi?type=1&host=dev.nagvis.org'>dev.nagvis.org</A></td><td CLASS='downtimeEven'>10-13-2009 09:15:35</td><td CLASS='downtimeEven'>Nagios Admin</td><td CLASS='downtimeEven'>Perl Downtime-Script</td><td CLASS='downtimeEven'>01-10-2010 09:15:35</td><td CLASS='downtimeEven'>01-10-2010 09:25:35</td><td CLASS='downtimeEven'>Fixed</td><td CLASS='downtimeEven'>0d 0h 10m 0s</td><td CLASS='downtimeEven'>9</td><td CLASS='downtimeEven'>N/A</td>
+                lineType = "downtime" & oMatches(0).SubMatches(0)
 
-                Set oDict = CreateObject("Scripting.Dictionary")
-
-                dbg "Found host downtime:" & _
-                    "Host: " & oMatches(0).SubMatches(0) & _
-                    " EntryTime: " & oMatches(0).SubMatches(1) & _
-                    " User: " & oMatches(0).SubMatches(2) & _
-                    " Comment: " & oMatches(0).SubMatches(3) & _
-                    " Start: " & oMatches(0).SubMatches(4) & _
-                    " End: " & oMatches(0).SubMatches(5) & _
-                    " Type: " & oMatches(0).SubMatches(6) & _
-                    " Duration: " & oMatches(0).SubMatches(7) & _
-                    " DowntimeID: " & oMatches(0).SubMatches(8) & _
-                    " TriggerID: " & oMatches(0).SubMatches(9)
-
-                oDict.Add "host", oMatches(0).SubMatches(0)
-                oDict.Add "service", ""
-                oDict.Add "entryTime", oMatches(0).SubMatches(1)
-                oDict.Add "user", oMatches(0).SubMatches(2)
-                oDict.Add "comment", oMatches(0).SubMatches(3)
-                oDict.Add "start", oMatches(0).SubMatches(4)
-                oDict.Add "end", oMatches(0).SubMatches(5)
-                oDict.Add "type", oMatches(0).SubMatches(6)
-                oDict.Add "duration", oMatches(0).SubMatches(7)
-                oDict.Add "downtimeId", oMatches(0).SubMatches(8)
-                oDict.Add "triggerId", oMatches(0).SubMatches(9)
-
-                ' Push to array
-                ReDim Preserve aDowntimes(UBound(aDowntimes) + 1)
-                Set aDowntimes(UBound(aDowntimes)) = oDict
-            Else
                 oRegex.Pattern = "<tr\sCLASS=\'" & lineType & "\'><td\sCLASS=\'" & lineType & _
-                                 "\'><A\sHREF=\'extinfo\.cgi\?type=1&host=([^\']+)\'>[^<]+" & _
-                                 "<\/A><\/td><td\sCLASS=\'" & lineType & "\'><A\sHREF=\'" & _
-                                 "extinfo\.cgi\?type=2&host=[^\']+&service=([^\']+)\'>[^<]+" & _
-                                 "<\/A><\/td><td\sCLASS=\'" & lineType & "\'>([^<]+)<\/td>" & _
-                                 "<td\sCLASS=\'" & lineType & "\'>([^<]+)<\/td><td\sCLASS=\'" & _
-                                 lineType & "\'>([^<]+)<\/td><td\sCLASS=\'" & lineType & "\'>" & _
-                                 "([^<]+)<\/td><td\sCLASS=\'" & lineType & "\'>([^<]+)<\/td>" & _
-                                 "<td\sCLASS=\'" & lineType & "\'>([^<]+)<\/td><td\sCLASS=\'" & _
-                                 lineType & "\'>([^<]+)<\/td><td\sCLASS=\'" & lineType & "\'>" & _
-                                 "([^<]+)<\/td><td\sCLASS=\'" & lineType & "\'>([^<]+)<\/td>"
+                                 "\'><A\sHREF=\'extinfo\.cgi\?type=1&host=([^\']+)\'>[^<]+<\/A>" & _
+                                 "<\/td><td\sCLASS=\'" & lineType & "\'>([^<]+)<\/td><td\sCLASS=\'" & _
+                                 lineType & "\'>([^<]+)<\/td><td\sCLASS=\'" & lineType & "\'>([^<]+)" & _
+                                 "<\/td><td\sCLASS=\'" & lineType & "\'>([^<]+)<\/td><td\sCLASS=\'" & _
+                                 lineType & "\'>([^<]+)<\/td><td\sCLASS=\'" & lineType & "\'>([^<]+)" & _
+                                 "<\/td><td\sCLASS=\'" & lineType & "\'>([^<]+)<\/td><td\sCLASS=\'" & _
+                                 lineType & "\'>([^<]+)<\/td><td\sCLASS=\'" & lineType & "\'>([^<]+)<\/td>"
                 Set oMatches = oRegex.Execute(sLine)
 
                 If oMatches.Count > 0 Then
-                    ' Service downtime:
-                    ' <tr CLASS='downtimeEven'><td CLASS='downtimeEven'><A HREF='extinfo.cgi?type=1&host=dev.nagvis.org'>dev.nagvis.org</A></td><td CLASS='downtimeEven'><A HREF='extinfo.cgi?type=2&host=dev.nagvis.org&service=HTTP'>HTTP</A></td><td CLASS='downtimeEven'>10-13-2009 10:28:30</td><td CLASS='downtimeEven'>Nagios Admin</td><td CLASS='downtimeEven'>test</td><td CLASS='downtimeEven'>10-13-2009 10:28:11</td><td CLASS='downtimeEven'>10-13-2009 12:28:11</td><td CLASS='downtimeEven'>Fixed</td><td CLASS='downtimeEven'>0d 2h 0m 0s</td><td CLASS='downtimeEven'>145</td><td CLASS='downtimeEven'>N/A</td>
+                    ' Host downtime:
+                    ' <tr CLASS='downtimeEven'><td CLASS='downtimeEven'><A HREF='extinfo.cgi?type=1&host=dev.nagvis.org'>dev.nagvis.org</A></td><td CLASS='downtimeEven'>10-13-2009 09:15:35</td><td CLASS='downtimeEven'>Nagios Admin</td><td CLASS='downtimeEven'>Perl Downtime-Script</td><td CLASS='downtimeEven'>01-10-2010 09:15:35</td><td CLASS='downtimeEven'>01-10-2010 09:25:35</td><td CLASS='downtimeEven'>Fixed</td><td CLASS='downtimeEven'>0d 0h 10m 0s</td><td CLASS='downtimeEven'>9</td><td CLASS='downtimeEven'>N/A</td>
 
                     Set oDict = CreateObject("Scripting.Dictionary")
 
-                    dbg "Found service downtime:" & _
+                    dbg "Found host downtime:" & _
                         "Host: " & oMatches(0).SubMatches(0) & _
-                        " Service: " & oMatches(0).SubMatches(1) & _
-                        " EntryTime: " & oMatches(0).SubMatches(2) & _
-                        " User: " & oMatches(0).SubMatches(3) & _
-                        " Comment: " & oMatches(0).SubMatches(4) & _
-                        " Start: " & oMatches(0).SubMatches(5) & _
-                        " End: " & oMatches(0).SubMatches(6) & _
-                        " Type: " & oMatches(0).SubMatches(7) & _
-                        " Duration: " & oMatches(0).SubMatches(8) & _
-                        " DowntimeID: " & oMatches(0).SubMatches(9) & _
-                        " TriggerID: " & oMatches(0).SubMatches(10)
+                        " EntryTime: " & oMatches(0).SubMatches(1) & _
+                        " User: " & oMatches(0).SubMatches(2) & _
+                        " Comment: " & oMatches(0).SubMatches(3) & _
+                        " Start: " & oMatches(0).SubMatches(4) & _
+                        " End: " & oMatches(0).SubMatches(5) & _
+                        " Type: " & oMatches(0).SubMatches(6) & _
+                        " Duration: " & oMatches(0).SubMatches(7) & _
+                        " DowntimeID: " & oMatches(0).SubMatches(8) & _
+                        " TriggerID: " & oMatches(0).SubMatches(9)
 
                     oDict.Add "host", oMatches(0).SubMatches(0)
-                    oDict.Add "service", oMatches(0).SubMatches(1)
-                    oDict.Add "entryTime", oMatches(0).SubMatches(2)
-                    oDict.Add "user", oMatches(0).SubMatches(3)
-                    oDict.Add "comment", oMatches(0).SubMatches(4)
-                    oDict.Add "start", oMatches(0).SubMatches(5)
-                    oDict.Add "end", oMatches(0).SubMatches(6)
-                    oDict.Add "type", oMatches(0).SubMatches(7)
-                    oDict.Add "duration", oMatches(0).SubMatches(8)
-                    oDict.Add "downtimeId", oMatches(0).SubMatches(9)
-                    oDict.Add "triggerId", oMatches(0).SubMatches(10)
+                    oDict.Add "service", ""
+                    oDict.Add "entryTime", oMatches(0).SubMatches(1)
+                    oDict.Add "user", oMatches(0).SubMatches(2)
+                    oDict.Add "comment", oMatches(0).SubMatches(3)
+                    oDict.Add "start", oMatches(0).SubMatches(4)
+                    oDict.Add "end", oMatches(0).SubMatches(5)
+                    oDict.Add "type", oMatches(0).SubMatches(6)
+                    oDict.Add "duration", oMatches(0).SubMatches(7)
+                    oDict.Add "downtimeId", oMatches(0).SubMatches(8)
+                    oDict.Add "triggerId", oMatches(0).SubMatches(9)
 
                     ' Push to array
                     ReDim Preserve aDowntimes(UBound(aDowntimes) + 1)
                     Set aDowntimes(UBound(aDowntimes)) = oDict
+                Else
+                    oRegex.Pattern = "<tr\sCLASS=\'" & lineType & "\'><td\sCLASS=\'" & lineType & _
+                                     "\'><A\sHREF=\'extinfo\.cgi\?type=1&host=([^\']+)\'>[^<]+" & _
+                                     "<\/A><\/td><td\sCLASS=\'" & lineType & "\'><A\sHREF=\'" & _
+                                     "extinfo\.cgi\?type=2&host=[^\']+&service=([^\']+)\'>[^<]+" & _
+                                     "<\/A><\/td><td\sCLASS=\'" & lineType & "\'>([^<]+)<\/td>" & _
+                                     "<td\sCLASS=\'" & lineType & "\'>([^<]+)<\/td><td\sCLASS=\'" & _
+                                     lineType & "\'>([^<]+)<\/td><td\sCLASS=\'" & lineType & "\'>" & _
+                                     "([^<]+)<\/td><td\sCLASS=\'" & lineType & "\'>([^<]+)<\/td>" & _
+                                     "<td\sCLASS=\'" & lineType & "\'>([^<]+)<\/td><td\sCLASS=\'" & _
+                                     lineType & "\'>([^<]+)<\/td><td\sCLASS=\'" & lineType & "\'>" & _
+                                     "([^<]+)<\/td><td\sCLASS=\'" & lineType & "\'>([^<]+)<\/td>"
+                    Set oMatches = oRegex.Execute(sLine)
+
+                    If oMatches.Count > 0 Then
+                        ' Service downtime:
+                        ' <tr CLASS='downtimeEven'><td CLASS='downtimeEven'><A HREF='extinfo.cgi?type=1&host=dev.nagvis.org'>dev.nagvis.org</A></td><td CLASS='downtimeEven'><A HREF='extinfo.cgi?type=2&host=dev.nagvis.org&service=HTTP'>HTTP</A></td><td CLASS='downtimeEven'>10-13-2009 10:28:30</td><td CLASS='downtimeEven'>Nagios Admin</td><td CLASS='downtimeEven'>test</td><td CLASS='downtimeEven'>10-13-2009 10:28:11</td><td CLASS='downtimeEven'>10-13-2009 12:28:11</td><td CLASS='downtimeEven'>Fixed</td><td CLASS='downtimeEven'>0d 2h 0m 0s</td><td CLASS='downtimeEven'>145</td><td CLASS='downtimeEven'>N/A</td>
+
+                        Set oDict = CreateObject("Scripting.Dictionary")
+
+                        dbg "Found service downtime:" & _
+                            "Host: " & oMatches(0).SubMatches(0) & _
+                            " Service: " & oMatches(0).SubMatches(1) & _
+                            " EntryTime: " & oMatches(0).SubMatches(2) & _
+                            " User: " & oMatches(0).SubMatches(3) & _
+                            " Comment: " & oMatches(0).SubMatches(4) & _
+                            " Start: " & oMatches(0).SubMatches(5) & _
+                            " End: " & oMatches(0).SubMatches(6) & _
+                            " Type: " & oMatches(0).SubMatches(7) & _
+                            " Duration: " & oMatches(0).SubMatches(8) & _
+                            " DowntimeID: " & oMatches(0).SubMatches(9) & _
+                            " TriggerID: " & oMatches(0).SubMatches(10)
+
+                        oDict.Add "host", oMatches(0).SubMatches(0)
+                        oDict.Add "service", oMatches(0).SubMatches(1)
+                        oDict.Add "entryTime", oMatches(0).SubMatches(2)
+                        oDict.Add "user", oMatches(0).SubMatches(3)
+                        oDict.Add "comment", oMatches(0).SubMatches(4)
+                        oDict.Add "start", oMatches(0).SubMatches(5)
+                        oDict.Add "end", oMatches(0).SubMatches(6)
+                        oDict.Add "type", oMatches(0).SubMatches(7)
+                        oDict.Add "duration", oMatches(0).SubMatches(8)
+                        oDict.Add "downtimeId", oMatches(0).SubMatches(9)
+                        oDict.Add "triggerId", oMatches(0).SubMatches(10)
+
+                        ' Push to array
+                        ReDim Preserve aDowntimes(UBound(aDowntimes) + 1)
+                        Set aDowntimes(UBound(aDowntimes)) = oDict
+                    End If
                 End If
             End If
-        End If
-    Next
+        Next
+    ElseIf ty = "multisite" Then
+        ' basic, simple json parsing
+        Dim parsed, row
+        parsed = parseMultisiteData(oBrowser.ResponseText)
+
+        For Each row In parsed
+            Set oDict = CreateObject("Scripting.Dictionary")
+            oDict.Add "host", row(0)
+            oDict.Add "service", row(1)
+            oDict.Add "entryTime", row(3)
+            oDict.Add "user", row(2)
+            oDict.Add "comment", row(8)
+            oDict.Add "start", row(4)
+            oDict.Add "end", row(5)
+            oDict.Add "type", row(6)
+            oDict.Add "duration", row(7)
+            oDict.Add "downtimeId", row(9)
+            oDict.Add "triggerId", "N/A"
+
+            ' Push to array
+            ReDim Preserve aDowntimes(UBound(aDowntimes) + 1)
+            Set aDowntimes(UBound(aDowntimes)) = oDict
+        Next
+    End If
 
     getAllDowntimes = aDowntimes
+End Function
+
+' no real json parsing. Simply extracting all strings, then splitting by fields
+Function parseMultisiteData(data)
+    Dim length, index, elem_start, element, rows, row, char, first_row
+    length = Len(data)
+    index = 0
+    elem_start = -1
+    rows = Array()
+    row = Array()
+    first_row = 1
+    While index < length
+        index = index + 1
+        char = Mid(data, index, 1)
+
+        if elem_start = -1 Then
+            ' Initialize an element, search for starts
+            If char = """" Then
+                elem_start = index + 1
+            End If
+        ElseIf char = """" Then
+            element = Mid(data, elem_start, index - elem_start)
+            Push row, element
+            elem_start = -1
+
+            ' Is the line complete? Then add it to the rows array
+            If UBound(row) = 9 Then
+                If first_row <> 1 Then
+                    Push rows, row
+                Else
+                    first_row = 0 ' simply drop the header row
+                End If
+                row = Array()
+            End If
+        End If
+    WEnd
+
+    ' Unfished row? Add it!
+    If UBound(row) <> -1 Then
+        Push rows, row
+    End If 
+
+    parseMultisiteData = rows
 End Function
 
 ' Funktion zum Test, ob ein Rechner per Ping erreichbar ist
@@ -1057,15 +1120,8 @@ Function Push(ByRef mArray, ByVal mValue)
     Dim mValEl
 
     If IsArray(mArray) Then
-        If IsArray(mValue) Then
-            For Each mValEl In mValue
-                Redim Preserve mArray(UBound(mArray) + 1)
-                mArray(UBound(mArray)) = mValEl
-            Next
-        Else
-            Redim Preserve mArray(UBound(mArray) + 1)
-            mArray(UBound(mArray)) = mValue
-        End If
+        Redim Preserve mArray(UBound(mArray) + 1)
+        mArray(UBound(mArray)) = mValue
     Else
         If IsArray(mValue) Then
             mArray = mValue
