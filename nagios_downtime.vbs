@@ -77,6 +77,7 @@
 ' 2012-12-05 v0.9   - Added support for scheduling downtimes via the JSON API of
 '                     Check_MK Multisite
 '                   - Internal recode of variables
+' 2013-07-31 v0.10  - Added support for deleting downtimes via Check_MK multisite
 ' ##############################################################################
 
 Option Explicit
@@ -162,7 +163,7 @@ evtlog = 0
 ' Default Debugmode: off => 0 or on => 1
 debug = 0
 ' Script version
-version = "0.9"
+version = "0.10"
 
 ' ##############################################################################
 ' Don't change anything below, except you know what you are doing.

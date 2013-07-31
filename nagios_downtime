@@ -134,7 +134,7 @@ my $downtimeComment = "Perl Downtime-Script";
 # Default Debugmode: off => 0 or on => 1
 my $debug = 0;
 # Script version
-my $version = "0.7";
+my $version = "0.8";
 
 # ##############################################################################
 # Don't change anything below, except you know what you are doing.
