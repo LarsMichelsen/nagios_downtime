@@ -1,0 +1,8 @@
+$type     = "multisite";
+$server   = "monitoring-host.local";
+$basePath = "/sysmon/check_mk";
+
+$user     = "svc-downtime";
+$userPw   = "test-password";
+
+$hostname = hostname;
