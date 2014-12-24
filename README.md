@@ -18,8 +18,10 @@ Scheduling downtimes for planned downtimes gives you several advantages:
 Currently the nagios_downtime Scripts are shipped for Linux (written in Perl)
 and Windows (written in VBS). The intention was to have two scripts for the
 different platforms to reach one goal. During time both scripts diverged a
-bit. Maybe I find the time to fix this one day. You are welcome to send 
-improvements!
+bit. I started development of these scripts back in 2005, so please don't
+be too strict with the coding style, I am a bit unhappy with this for myself,
+but currently don't have the time to fix this. Maybe I find the time to fix
+this one day. You are welcome to send improvements!
 
 ## Linux (Perl script)
 
@@ -112,6 +114,10 @@ scheduled downtimes can be deleted by calling nagios_downtime in deletion mode
 
 I decided to use GitHub for managing project related communication, you
 can find the project at (https://github.com/LaMi-/nagios_downtime).
+
+The nagios_downtime scripts were previously homed on my personal, a bit outdated, blog.
+You might find some useful information there in the related articles or commennts
+(http://larsmichelsen.com/nagios-downtime/).
 
 ## Thanks
 
