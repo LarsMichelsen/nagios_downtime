@@ -1,4 +1,4 @@
-# nagios_downtime - Script based downtime scheduling for Nagios / Icinga
+# nagios_downtime - Script based downtime scheduling
 
 nagios_downtime can be used to schedule downtimes directly from monitored
 machines to automaticaly schedule downtimes in Nagios only with having access
@@ -88,15 +88,15 @@ Copy the init script `nagios_downtime.init` to `/etc/init.d`. Also make sure it 
 executable.
 
 ```
-cp -p nagios_downtime.init /etc/init.d
-chmod +x /etc/init.d/nagios_downtime.init
+# cp -p nagios_downtime.init /etc/init.d
+# chmod +x /etc/init.d/nagios_downtime.init
 ```
 
 Activate the init script to be executed on system shutdown.
 
 ```
-chkconfig --add nagios_downtime
-chkconfig nagios_downtime on
+# chkconfig --add nagios_downtime
+# chkconfig nagios_downtime on
 ```
 
 ### Downtime deletion
