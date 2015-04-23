@@ -2,12 +2,12 @@
 
 nagios_downtime can be used to schedule downtimes directly from monitored
 machines to automaticaly schedule downtimes in Nagios only with having access
-to the Nagios CGIs. There is no additional connection needed.
+to the Nagios CGIs or Multisite with having access to the Web API. There is no additional connection needed.
 
 You can schedule those downtimes automaticaly on system reboot by an init
 script. You could also run the script to schedule downtimes for special
 services e.g. during backups of databases. nagios_downtime can create a
-downtime in Nagios before shuting down the database to start the backup (add
+downtime in Nagios/Multisite before shuting down the database to start the backup (add
 mode) and delete the downtime again when the backup is finished (del mode).
 
 Scheduling downtimes for planned downtimes gives you several advantages:
@@ -53,14 +53,13 @@ For details about the single command line parameters please execute this:
 # nagios_downtime -h
 ```
 
-You may change the basic like Nagios host, cgi path, cgi user and password 
+You may create a configuration file with the basic parameters like Nagios host, cgi path, cgi user and password 
 using the options in the nagios_downtime script. This way you don't need to
 provide the parameters on each call.
 
 #### Examples:
-##### OMD & Multisite
-This command can be used to schedule a downtime of 15 minutes on the OMD or Multisite
-host (`omd.my-domain.com`). The path `/omdsite/check_mk`, the user `automiationuser` and its password `automiationpassword` will be used to access the API. A host-downtime for the host `webserver.my-domain.com` will be scheduled.
+##### OMD with Multisite
+This command can be used to schedule a downtime of 15 minutes on a OMD host (`omd.my-domain.com`) with Multisite enabled. The path `/omdsite/check_mk`, the user `automiationuser` and its password `automiationpassword` will be used to access the API. A host-downtime for the host `webserver.my-domain.com` will be scheduled.
 ```
 # nagios_downtime -m add -t 15 -i multisite -S omd.my-domain.com -p /omdsite/check_mk \
                   -u automiationuser -P automiationpassword -H webserver.my-domain.com
