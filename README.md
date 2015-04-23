@@ -57,12 +57,27 @@ You may change the basic like Nagios host, cgi path, cgi user and password
 using the options in the nagios_downtime script. This way you don't need to
 provide the parameters on each call.
 
-Examples:
+#### Examples:
+##### OMD & Multisite
+This command can be used to schedule a downtime of 15 minutes on the OMD or Multisite
+host (`omd.my-domain.com`). The path `/omdsite/check_mk`, the user `automiationuser` and its password `automiationpassword` will be used to access the API. A host-downtime for the host `webserver.my-domain.com` will be scheduled.
+```
+# nagios_downtime -m add -t 15 -i multisite -S omd.my-domain.com -p /omdsite/check_mk \
+                  -u automiationuser -P automiationpassword -H webserver.my-domain.com
+```
 
+With this command you can terminate the downtime. You need to have the
+saving of the downtime ids enabled.
+
+```
+# nagios_downtime -m del -i multisite -S omd.my-domain.com -p /omdsite/check_mk \
+                  -u nagiosadmin -P nagiosadmin -H webserver.my-domain.com
+```
+##### Nagios
 This command can be used to schedule a downtime of 15 minutes on the nagios
-host (nagios.my-domain.com). The CGIs are located at /nagios/cgi-bin. The
-CGIs can be accessed by the user nagiosadmin with password nagiosadmin. A
-host-downtime for the host webserver.my-domain.com will be scheduled.
+host (`nagios.my-domain.com`). The CGIs are located at `/nagios/cgi-bin`. The
+CGIs can be accessed by the user `nagiosadmin` with password `nagiosadmin`. A
+host-downtime for the host `webserver.my-domain.com` will be scheduled.
 
 ```
 # nagios_downtime -m add -t 15 -S nagios.my-domain.com -p /nagios/cgi-bin \
@@ -70,7 +85,7 @@ host-downtime for the host webserver.my-domain.com will be scheduled.
 ```
 
 With this command you can terminate the downtime. You need to have the
-saving of the downtime ids enabled (See next chapter).
+saving of the downtime ids enabled.
 
 ```
 # nagios_downtime -m del -S nagios.my-domain.com -p /nagios/cgi-bin \
