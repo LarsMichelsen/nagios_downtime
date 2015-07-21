@@ -59,10 +59,10 @@ provide the parameters on each call.
 
 #### Examples:
 ##### OMD with Multisite
-This command can be used to schedule a downtime of 15 minutes on a OMD host (`omd.my-domain.com`) with Multisite enabled. The path `/omdsite/check_mk`, the user `automiationuser` and its password `automiationpassword` will be used to access the API. A host-downtime for the host `webserver.my-domain.com` will be scheduled.
+This command can be used to schedule a downtime of 15 minutes on a OMD host (`omd.my-domain.com`) with Multisite enabled. The path `/omdsite/check_mk`, the user `automationuser` and its password `automationpassword` will be used to access the API. A host-downtime for the host `webserver.my-domain.com` will be scheduled.
 ```
 # nagios_downtime -m add -t 15 -i multisite -S omd.my-domain.com -p /omdsite/check_mk \
-                  -u automiationuser -P automiationpassword -H webserver.my-domain.com
+                  -u automationuser -P automationpassword -H webserver.my-domain.com
 ```
 
 With this command you can terminate the downtime. You need to have the
