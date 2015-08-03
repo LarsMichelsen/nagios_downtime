@@ -64,6 +64,9 @@
 # ##############################################################################
 # Configuration (-> Here you have to set some values!)
 # ##############################################################################
+use strict;
+use warnings;
+use Time::HiRes qw(clock_gettime CLOCK_REALTIME);
 
 # Interface/API to use to set downtimes. Can be set to "nagios" to use the
 # default CGI based webinterface or "multisite" to set downtimes via Check_MK
@@ -124,7 +127,7 @@ my $downtimePath = '/tmp';
 
 # Script internal downtime id for a new downtime
 # Using the current timestamp as script internal downtime identifier
-my $downtimeId = time;
+my $downtimeId = clock_gettime(CLOCK_REALTIME) || time;
 # Default downtime type (1: Host Downtime, 2: Service Downtime)
 my $downtimeType = 1;
 # Default Downtime duration in minutes
@@ -140,8 +143,6 @@ my $version = "0.8";
 # Don't change anything below, except you know what you are doing.
 # ##############################################################################
 
-use strict;
-use warnings;
 use Net::Ping;
 use LWP 5.64;
 use Sys::Hostname;
@@ -202,12 +203,17 @@ my %messages = (
 );
 
 # Load optional config file to override hardcoded defaults
-my $config_file = "nagios_downtime.conf";
-if(-f $config_file) {
-    local $/=undef;
-    open IN, $config_file;
-    eval <IN>;
-    close IN;
+my @config_files = qw(nagios_downtime.conf /etc/nagios_downtime.conf /usr/local/etc/conf.d/nagios_downtime.conf);
+foreach my $config_file ( @config_files )
+{
+    # load the config file first found
+    if(-f $config_file) {
+        local $/=undef;
+        open IN, $config_file;
+        eval <IN>;
+        close IN;
+        last;
+    }
 }
 
 # Load command line options to override hardcoded defaults
@@ -347,19 +353,21 @@ switch($mode) {
             # 2xx response code is OK
             case 2 {
                 # Do some basic handling with the response content
-                switch($oResponse->content) {
-                    case { index($_[0], get_msg("success")) != -1 } {
+                my $content = $oResponse->content;
+
+                switch($content) {
+                    case { index($content, get_msg("success")) != -1 } {
                         # Save the id of the just scheduled downtime
                         if($storeDowntimeIds == 1) {
                             saveDowntimeId();
                         }
                         
-                        success("Downtime was submited successfully");
+                        success("Downtime was submitted successfully");
                     }
-                    case { index($_[0], get_msg("not_authorized")) != -1 } {
-                        error("Maybe not authorized or wrong host- or servicename.");
+                    case { index($content, get_msg("not_authorized")) != -1 } {
+                        error("Maybe not authorized or wrong hostname or servicename.");
                     }
-                    case { index($_[0], get_msg("no_author")) != -1 } {
+                    case { index($content, get_msg("no_author")) != -1 } {
                         error("No Author entered, define Author in \$user var.");
                     }
                     else {
@@ -394,10 +402,11 @@ switch($mode) {
         my @downtimes = sort({ $b <=> $a } @{getDowntimeIds()});
         
         # Only proceed when downtimes found
-        if($#downtimes >= 0) {
+        if (0 < scalar @downtimes) {
             # Get the nagios downtime id for the last scheduled downtime
             my $nagiosDowntimeId = getNagiosDowntimeId($downtimes[0]);
-            
+
+            debug("nagiosDowntimeId: $nagiosDowntimeId (". $downtimes[0] .")");
             if($nagiosDowntimeId ne "") {
                 deleteDowntime($nagiosDowntimeId);
             }
@@ -475,10 +484,13 @@ sub delDowntimeId {
             close(IN);
             
             @contents = grep { !/^$internalId$/i } @contents;
-            
-            if(open(OUT, ">", $file)) {
-                print OUT @contents;
-                close OUT;
+            chomp @contents;
+
+            if (0 < scalar @contents) {
+                if(open(OUT, ">", $file)) {
+                    print OUT @contents;
+                    close OUT;
+                }
             }
         }
     }
@@ -497,6 +509,8 @@ sub getDowntimeIds {
     if(-f $file) {
         if(open(DAT, "<".$file)) {
             while(my $line = <DAT>) {
+                next if $line =~ m/^$/;
+
                 # Do some validation
                 if($line =~ m/[0-9]+/i) {
                     chomp($line);
@@ -666,22 +680,33 @@ sub getAllDowntimes {
         }
     } elsif ($type eq 'multisite') {
         my @downtimes = @{decode_json($oResponse->content)};
-        shift(@downtimes); # remove the header
+        my @header = @{ shift(@downtimes) }; # remove the header
+
+        # header2index map
+        my %h2i;
+        for my $idx (0 .. $#header) {
+            $h2i{ ${header[$idx]} } = $idx;
+        }
+
         foreach my $row (@downtimes) {
             my @row = @{$row};
+
             push @arr, {
-                host       => $row[0], #host,
-                service    => $row[1], #service_description,
-                entryTime  => $row[3], #downtime_entry_time,
-                user       => $row[2], #downtime_author,
-                comment    => $row[8], #downtime_comment,
-                start      => $row[4], #downtime_start_time,
-                end        => $row[5], #downtime_end_time,
-                type       => $row[6], #downtime_fixed,
-                duration   => $row[7], #downtime_duration,
-                downtimeId => $row[9], #downtime_id,
+                host       => $row[ $h2i{host} ],
+                service    => $row[ $h2i{service_description} ],
+                entryTime  => $row[ $h2i{downtime_entry_time} ],
+                user       => $row[ $h2i{downtime_author} ],
+                comment    => $row[ $h2i{downtime_comment} ],
+                start      => $row[ $h2i{downtime_start_time} ],
+                end        => $row[ $h2i{downtime_end_time} ],
+                type       => $row[ $h2i{downtime_fixed} ],
+                duration   => $row[ $h2i{downtime_duration} ],
+                downtimeId => $row[ $h2i{downtime_id} ],
+                origin     => $row[ $h2i{downtime_origin} || 0 ],
+                recurring  => $row[ $h2i{downtime_recurring} || 0 ],
                 triggerId  => 'N/A',
             };
+
             if (scalar(@row) < 10) {
                 error("The \"downtime_id\" field is missing in the \"downtime\" view. Please add it as last field.");
             }
