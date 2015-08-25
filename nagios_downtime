@@ -710,7 +710,7 @@ called in "del" mode.
 
 Parameters:
  -i, --interface  Type of interface to be used to set downtimes (nagios or
-                  multisite). Defaults to nagios.
+                  multisite). Defaults to nagios. If OMD with Multisite or Check_MK is used set to multisite.
  
  -m, --mode       Mode to run the script in (Available: add, del)
  
@@ -726,7 +726,7 @@ Parameters:
  -p, --path       Web path to API url. In case of nagios interface, the
                   path to the Nagios cgi-bin (Default: /nagios/cgi-bin).
                   In case of multisite API this path should point to
-                  the base path of multisite (e.g. /check_mk)
+                  the base path of multisite (e.g. /check_mk or /omdsite/check_mk)
  -u, --user       Username to be used for accessing the API
  -P, --password   Password for accessing the API
  
