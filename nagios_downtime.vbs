@@ -1,7 +1,7 @@
 ' ##############################################################################
 ' nagios_downtime.vbs
 '
-' Copyright (c) 2005-2012 Lars Michelsen <lm@larsmichelsen.com>
+' Copyright (c) 2005-2015 Lars Michelsen <lm@larsmichelsen.com>
 ' http://larsmichelsen.com/
 '
 ' Permission is hereby granted, free of charge, to any person
@@ -78,6 +78,7 @@
 '                     Check_MK Multisite
 '                   - Internal recode of variables
 ' 2013-07-31 v0.10  - Added support for deleting downtimes via Check_MK multisite
+' 2015-08-25 v0.11  - Fixed downtime deletion with Check_MK newer than 1.2.7
 ' ##############################################################################
 
 Option Explicit
@@ -109,6 +110,7 @@ webServer = ""
 webPort = 80
 ' Web path to Nagios cgi-bin (example: /nagios/cgi-bin) (NO trailing slash!)
 ' In case of Icinga this would be "/icinga/cgi-bin" by default
+' Or if type is multisite, path to multisite (e.g. /check_mk)
 basePath = "/nagios/cgi-bin"
 
 ' User to take for authentication and author to enter the downtime (example:
@@ -992,23 +994,41 @@ Function getAllDowntimes()
             End If
         Next
     ElseIf ty = "multisite" Then
+
         ' basic, simple json parsing
         Dim parsed, row
         parsed = parseMultisiteData(oBrowser.ResponseText)
 
         For Each row In parsed
             Set oDict = CreateObject("Scripting.Dictionary")
-            oDict.Add "host", row(0)
-            oDict.Add "service", row(1)
-            oDict.Add "entryTime", row(3)
-            oDict.Add "user", row(2)
-            oDict.Add "comment", row(8)
-            oDict.Add "start", row(4)
-            oDict.Add "end", row(5)
-            oDict.Add "type", row(6)
-            oDict.Add "duration", row(7)
-            oDict.Add "downtimeId", row(9)
-            oDict.Add "triggerId", "N/A"
+
+            If UBound(row) = 11 Then
+                ' Handle new indices since http://git.mathias-kettner.de/git/?p=check_mk.git;a=commitdiff;h=c909636fe1eb4085d346f650c9f8387d7780c913
+                ' It would be much better to work with the column names. I know...
+                oDict.Add "host", row(0)
+                oDict.Add "service", row(1)
+                oDict.Add "entryTime", row(4)
+                oDict.Add "user", row(3)
+                oDict.Add "comment", row(10)
+                oDict.Add "start", row(5)
+                oDict.Add "end", row(6)
+                oDict.Add "type", row(7)
+                oDict.Add "duration", row(8)
+                oDict.Add "downtimeId", row(11)
+                oDict.Add "triggerId", "N/A"
+            Else
+                oDict.Add "host", row(0)
+                oDict.Add "service", row(1)
+                oDict.Add "entryTime", row(3)
+                oDict.Add "user", row(2)
+                oDict.Add "comment", row(8)
+                oDict.Add "start", row(4)
+                oDict.Add "end", row(5)
+                oDict.Add "type", row(6)
+                oDict.Add "duration", row(7)
+                oDict.Add "downtimeId", row(9)
+                oDict.Add "triggerId", "N/A"
+            End If
 
             ' Push to array
             ReDim Preserve aDowntimes(UBound(aDowntimes) + 1)
@@ -1033,24 +1053,26 @@ Function parseMultisiteData(data)
         char = Mid(data, index, 1)
 
         if elem_start = -1 Then
-            ' Initialize an element, search for starts
             If char = """" Then
+                ' Initialize an element, search for starts
                 elem_start = index + 1
+            ElseIf char = vblf Then
+                ' Is the line complete? Then add it to the rows array. The 8 here is
+                ' a value just to te sure we do not add empty/incomplete rows. In old
+                ' cmk releases the number of columns was 9, currently we get 11
+                If UBound(row) > 8 Then
+                    If first_row <> 1 Then
+                        Push rows, row
+                    Else
+                        first_row = 0 ' simply drop the header row
+                    End If
+                    row = Array()
+                End If
             End If
         ElseIf char = """" Then
             element = Mid(data, elem_start, index - elem_start)
             Push row, element
             elem_start = -1
-
-            ' Is the line complete? Then add it to the rows array
-            If UBound(row) = 9 Then
-                If first_row <> 1 Then
-                    Push rows, row
-                Else
-                    first_row = 0 ' simply drop the header row
-                End If
-                row = Array()
-            End If
         End If
     WEnd
 
@@ -1062,8 +1084,8 @@ Function parseMultisiteData(data)
     parseMultisiteData = rows
 End Function
 
-' Funktion zum Test, ob ein Rechner per Ping erreichbar ist
-' Übergabeparameter: IP oder Hostname
+' Test whether or not a host is reachable via ping.
+' Use hostname or ip address as ping target parameter
 Function PingTest(strHostOrIP)
     Dim strCommand, objSh
     Set objSh = CreateObject("WScript.Shell")
