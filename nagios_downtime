@@ -271,12 +271,12 @@ if($storeDowntimeIds == 1) {
 
 # Calculate the start of the downtime
 $start = gettime($now);
- 
+
 # Calculate the end of the downtime
 $end = gettime($now+$downtimeDuration*60);
- 
+
 # Check if web server is reachable via ping, if not, terminate the script
-$p = Net::Ping->new();
+$p = Net::Ping->new("icmp");
 if(!$p->ping($webServer)) {
     error("Given Nagios web server \"" . $webServer . "\" not reachable via ping.")
 }

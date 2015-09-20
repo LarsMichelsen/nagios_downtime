@@ -110,7 +110,7 @@ nagios_downtime file to be able to use the feature. Once enabled newly
 scheduled downtimes can be deleted by calling nagios_downtime in deletion mode
 (`-m del`).
 
-### Bugs and Support
+## Bugs and Support
 
 I decided to use GitHub for managing project related communication, you
 can find the project at (https://github.com/LaMi-/nagios_downtime).
