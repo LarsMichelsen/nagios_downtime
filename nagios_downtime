@@ -105,7 +105,7 @@ my $authName = "Nagios Access";
 # (only needed when $type is set to "nagios")
 #
 
-# Nagios date format (same like set in value "date_format" in nagios.cfg)
+# Nagios date format (has to be set to the same value as "date_format" in nagios.cfg)
 my $nagiosDateFormat = "us";
 
 # When you have to use a proxy server for access to the nagios server, set the
